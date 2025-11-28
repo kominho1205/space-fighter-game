@@ -241,7 +241,7 @@ setInterval(() => {
 }, TICK);
 
 /* --------------------------------------
-   AI 난이도 조절 포함 updateGame
+   updateGame (AI 난이도 포함)
 -------------------------------------- */
 
 function updateGame(game, dt) {
@@ -280,8 +280,7 @@ function updateGame(game, dt) {
     if (p._shootCooldown > 0) p._shootCooldown -= dt;
   });
 
-
-  /* --- AI 개선 (난이도 하향) --- */
+  /* --- AI 동작 (상하 이동 + 아이템 먹기 + 난이도 낮춤) --- */
   if (game.ai) {
     const ai = game.players.find(p => !p.socket);
     const human = game.players.find(p => p.socket);
@@ -290,7 +289,6 @@ function updateGame(game, dt) {
       let targetX = human.x;
       let targetY = human.y;
 
-      // 아이템을 너무 적극적으로 먹지 않게 조정
       if (game.items.length > 0) {
         let nearest = null;
         let best = 99999;
@@ -310,13 +308,12 @@ function updateGame(game, dt) {
       const dx = targetX - ai.x;
       const dy = targetY - ai.y;
 
-      const MOVE_DEAD = 25;  // 정밀함 낮추기
+      const MOVE_DEAD = 25;
       ai.moveInput.left  = dx < -MOVE_DEAD;
       ai.moveInput.right = dx >  MOVE_DEAD;
       ai.moveInput.up    = dy < -MOVE_DEAD;
       ai.moveInput.down  = dy >  MOVE_DEAD;
 
-      // 사격 조건
       const aligned = Math.abs(dx) < 40;
 
       if (aligned && ai._shootCooldown <= 0 && ai.ammo >= 25) {
@@ -324,7 +321,7 @@ function updateGame(game, dt) {
           spawnBullet(game, ai);
           ai.ammo -= 25;
         }
-        ai._shootCooldown = 1.2 + Math.random() * 0.8; // 쿨 길게
+        ai._shootCooldown = 1.2 + Math.random() * 0.8;
       }
     }
   }
@@ -341,7 +338,6 @@ function updateGame(game, dt) {
   game.bullets.forEach((b) => {
     b.y += b.vy * dt;
     b.life -= dt;
-
     if (b.life <= 0) return;
 
     let hit = false;
@@ -349,15 +345,13 @@ function updateGame(game, dt) {
       if (p.socketId === b.ownerId) return;
       const dx = p.x - b.x;
       const dy = p.y - b.y;
-      if (Math.hypot(dx,dy) < 24) {
+      if (Math.hypot(dx, dy) < 24) {
         hit = true;
         if (!p.shieldActive && !p.hitInvActive) {
           p.hp -= 1;
           p.hitInvActive = true;
           p.hitInvTimer = 1.0;
-
           game.explosions.push({ x: b.x, y: b.y, age: 0 });
-
           if (p.hp <= 0) {
             finishGame(game, b.ownerId);
           }
@@ -384,7 +378,7 @@ function updateGame(game, dt) {
     game.players.forEach((p) => {
       const dx = p.x - it.x;
       const dy = p.y - it.y;
-      if (Math.hypot(dx,dy) < 26) {
+      if (Math.hypot(dx, dy) < 26) {
         taken = true;
         if (it.type === "heart") {
           if (p.hp < p.maxHp) p.hp++;
@@ -409,12 +403,13 @@ function spawnRandomItem(game) {
   const x = 80 + Math.random() * 640;
   const y = 120 + Math.random() * 360;
   const r = Math.random();
-  let type = r < 0.33 ? "heart" : r < 0.66 ? "shield" : "ammo";
+  const type = r < 0.33 ? "heart" : r < 0.66 ? "shield" : "ammo";
 
   game.items.push({
     id: "it_" + Math.random().toString(36).slice(2),
     type,
-    x, y
+    x,
+    y
   });
 }
 
@@ -459,13 +454,19 @@ function broadcastState(game) {
       score: users.get(p.userId)?.score ?? p.scoreSnapshot
     })),
     bullets: game.bullets.map((b) => ({
-      x: b.x, y: b.y, skinId: b.skinId
+      x: b.x,
+      y: b.y,
+      skinId: b.skinId
     })),
     items: game.items.map((it) => ({
-      type: it.type, x: it.x, y: it.y
+      type: it.type,
+      x: it.x,
+      y: it.y
     })),
     explosions: game.explosions.map((e) => ({
-      x: e.x, y: e.y, age: e.age
+      x: e.x,
+      y: e.y,
+      age: e.age
     }))
   };
 
@@ -487,9 +488,9 @@ io.on("connection", (socket) => {
 
   socket.on("get_leaderboard", (cb) => {
     const list = [...users.values()]
-      .sort((a,b) => b.score - a.score)
-      .slice(0,50)
-      .map(u => ({ nickname: u.nickname, score: u.score }));
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 50)
+      .map((u) => ({ nickname: u.nickname, score: u.score }));
     cb(list);
   });
 
@@ -536,7 +537,7 @@ io.on("connection", (socket) => {
   socket.on("move", (m) => {
     const game = findGameBySocketId(socket.id);
     if (!game) return;
-    const p = game.players.find(p => p.socketId === socket.id);
+    const p = game.players.find((p) => p.socketId === socket.id);
     if (!p) return;
     p.moveInput = {
       up: !!m.up,
@@ -549,7 +550,7 @@ io.on("connection", (socket) => {
   socket.on("shoot", () => {
     const game = findGameBySocketId(socket.id);
     if (!game) return;
-    const p = game.players.find(p => p.socketId === socket.id);
+    const p = game.players.find((p) => p.socketId === socket.id);
     if (!p) return;
     if (p._shootCooldown > 0 || p.ammo < 25) return;
 
@@ -563,9 +564,10 @@ io.on("connection", (socket) => {
     if (!game) return;
 
     game.restartStatus[socket.id] = true;
+
     const readyAll = game.players
-      .filter(p => p.socket)
-      .every(p => game.restartStatus[p.socket.id]);
+      .filter((p) => p.socket)
+      .every((p) => game.restartStatus[p.socket.id]);
 
     if (readyAll) {
       const matchId = game.id;
