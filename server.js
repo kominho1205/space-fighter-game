@@ -35,7 +35,7 @@ function updateSkinUnlocks(profile) {
   if (s >= 0) profile.unlockedSkins.add(0);   // 기본
   if (s >= 200) profile.unlockedSkins.add(1); // 와이드
   if (s >= 400) profile.unlockedSkins.add(2); // 다트
-  if (s >= 700) profile.unlockedSkins.add(3); // 레이저형 등
+  if (s >= 700) profile.unlockedSkins.add(3); // 레이저
 }
 
 // ---------------- 게임 상수 ----------------
@@ -52,17 +52,30 @@ const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
 const PLAYER_SPEED = 260;
 const BULLET_SPEED = 420;
-const PLAYER_WIDTH = 40;
-const PLAYER_HEIGHT = 40;
-const MAX_HP = 3;
+const DEFAULT_MAX_HP = 3;
 const AMMO_MAX = 100;
 const AMMO_REGEN_PER_SEC = 20;
 const AMMO_COST_PER_SHOT = 35;
 const SHIELD_DURATION_MS = 2000;
+const HIT_INV_MS = 1000;              // 피격 후 무적 시간 (1초)
 const ITEM_SPAWN_INTERVAL_MS = 7000;
 const ITEM_RADIUS = 15;
 const PLAYER_RADIUS = 22;
 const EXPLOSION_DURATION_MS = 350;
+
+// 스킨별 능력치
+function getSkinStats(skinId) {
+  switch (skinId) {
+    case 1: // 와이드: HP 4, 속도 0.85배
+      return { maxHp: 4, moveSpeed: PLAYER_SPEED * 0.85 };
+    case 2: // 다트: HP 3, 속도 1.15배
+      return { maxHp: 3, moveSpeed: PLAYER_SPEED * 1.15 };
+    case 3: // 레이저: HP 3, 기본 속도
+      return { maxHp: 3, moveSpeed: PLAYER_SPEED };
+    default: // 기본
+      return { maxHp: DEFAULT_MAX_HP, moveSpeed: PLAYER_SPEED };
+  }
+}
 
 // ---------------- 방 상태 초기화 ----------------
 
@@ -80,17 +93,23 @@ function initRoomState(roomId, socketId1, socketId2) {
   const skin1 = s1?.data.profile?.preferredSkin ?? 0;
   const skin2 = s2?.data.profile?.preferredSkin ?? 0;
 
+  const stats1 = getSkinStats(skin1);
+  const stats2 = getSkinStats(skin2);
+
   players[socketId1] = {
     socketId: socketId1,
     role: "bottom",
     x: middleX,
     y: bottomY,
-    width: PLAYER_WIDTH,
-    height: PLAYER_HEIGHT,
-    hp: MAX_HP,
+    width: 40,
+    height: 40,
+    hp: stats1.maxHp,
+    maxHp: stats1.maxHp,
+    moveSpeed: stats1.moveSpeed,
     ammo: AMMO_MAX,
     input: { up: false, down: false, left: false, right: false },
     shieldUntil: 0,
+    hitInvUntil: 0,
     skinId: skin1
   };
 
@@ -99,12 +118,15 @@ function initRoomState(roomId, socketId1, socketId2) {
     role: "top",
     x: middleX,
     y: topY,
-    width: PLAYER_WIDTH,
-    height: PLAYER_HEIGHT,
-    hp: MAX_HP,
+    width: 40,
+    height: 40,
+    hp: stats2.maxHp,
+    maxHp: stats2.maxHp,
+    moveSpeed: stats2.moveSpeed,
     ammo: AMMO_MAX,
     input: { up: false, down: false, left: false, right: false },
     shieldUntil: 0,
+    hitInvUntil: 0,
     skinId: skin2
   };
 
@@ -171,8 +193,10 @@ function stepRoom(roomState) {
       vy /= len;
     }
 
-    p.x += vx * PLAYER_SPEED * dt;
-    p.y += vy * PLAYER_SPEED * dt;
+    const speed = p.moveSpeed || PLAYER_SPEED;
+
+    p.x += vx * speed * dt;
+    p.y += vy * speed * dt;
 
     const halfW = p.width / 2;
     const halfH = p.height / 2;
@@ -220,9 +244,14 @@ function stepRoom(roomState) {
         });
 
         if (now < p.shieldUntil) {
-          // 방어막이 막음
+          // 방어막
+        } else if (now < p.hitInvUntil) {
+          // 피격 무적 중
         } else {
+          // 실제 피해
           p.hp -= 1;
+          p.hitInvUntil = now + HIT_INV_MS;
+
           if (p.hp <= 0) {
             p.hp = 0;
             roomState.gameOver = true;
@@ -275,7 +304,8 @@ function stepRoom(roomState) {
   ) {
     roomState.lastItemSpawnAt = now;
     if (roomState.items.length < 2) {
-      const itemId = "item_" + now + "_" + Math.floor(Math.random() * 10000);
+      const itemId =
+        "item_" + now + "_" + Math.floor(Math.random() * 10000);
       const x = 80 + Math.random() * (GAME_WIDTH - 160);
       const y = 120 + Math.random() * (GAME_HEIGHT - 240);
 
@@ -301,8 +331,8 @@ function stepRoom(roomState) {
       if (distSq <= r * r && !item._takenBy) {
         item._takenBy = socketId;
         if (item.type === "heart") {
-          p.hp += 1;
-          if (p.hp > MAX_HP) p.hp = MAX_HP;
+          const maxHp = p.maxHp || DEFAULT_MAX_HP;
+          p.hp = Math.min(maxHp, p.hp + 1);
         } else if (item.type === "shield") {
           p.shieldUntil = now + SHIELD_DURATION_MS;
         } else if (item.type === "ammo") {
@@ -333,8 +363,10 @@ function stepRoom(roomState) {
         width: p.width,
         height: p.height,
         hp: p.hp,
+        maxHp: p.maxHp || DEFAULT_MAX_HP,
         ammo: p.ammo,
         shieldActive: now < p.shieldUntil,
+        hitInvActive: now < p.hitInvUntil,
         skinId: p.skinId ?? 0,
         nickname: prof?.nickname || "플레이어",
         score: prof?.score ?? 0
@@ -400,10 +432,16 @@ function resetRoomState(roomState) {
   for (const socketId of roomState.sockets) {
     const p = roomState.players[socketId];
     if (!p) continue;
-    p.hp = MAX_HP;
+
+    const stats = getSkinStats(p.skinId ?? 0);
+    p.maxHp = stats.maxHp;
+    p.moveSpeed = stats.moveSpeed;
+    p.hp = p.maxHp;
     p.ammo = AMMO_MAX;
     p.shieldUntil = 0;
+    p.hitInvUntil = 0;
     p.input = { up: false, down: false, left: false, right: false };
+
     if (p.role === "bottom") {
       p.x = GAME_WIDTH / 2;
       p.y = GAME_HEIGHT - 80;
@@ -526,6 +564,7 @@ io.on("connection", (socket) => {
       preferredSkin: profile.preferredSkin
     });
 
+    // 현재 방에 있으면 해당 플레이어 스탯도 갱신(현재 판에도 적용)
     const roomsJoined = Array.from(socket.rooms).filter((r) =>
       r.startsWith("room_")
     );
@@ -535,7 +574,12 @@ io.on("connection", (socket) => {
     if (!roomState) return;
     const player = roomState.players[socket.id];
     if (!player) return;
+
+    const stats = getSkinStats(id);
     player.skinId = id;
+    player.maxHp = stats.maxHp;
+    if (player.hp > stats.maxHp) player.hp = stats.maxHp;
+    player.moveSpeed = stats.moveSpeed;
   });
 
   socket.on("restart_request", () => {
