@@ -62,6 +62,10 @@
 
     <!-- 5. 게임 플레이 화면 -->
     <div id="screen-game" class="screen hidden">
+      <!-- 전투 화면(캔버스)을 먼저 -->
+      <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+      <!-- 그 아래에 UI/버튼들 -->
       <div id="ui">
         <h1>Space Z</h1>
         <div id="status">
@@ -126,8 +130,6 @@
           </div>
         </div>
       </div>
-
-      <canvas id="gameCanvas" width="800" height="600"></canvas>
 
       <div id="overlay" class="hidden">
         <div id="overlayText"></div>
