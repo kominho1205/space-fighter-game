@@ -268,25 +268,20 @@ function drawFighter(p) {
   ctx.restore();
 }
 
-// 아이템 하트: 체력 하트와 최대한 같은 모양/비율로 맞추기
+// 아이템 하트: 회전 없이, 체력 하트랑 비슷한 비율의 정방향 하트
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
-
-  // 회전 방향을 반대로 (⊂ 현재 옆으로 누운 문제 해결)
-  ctx.rotate(Math.PI / 4); // +45도 회전
-
   ctx.fillStyle = "#ff4b69";
 
-  // 중앙 네모 (18 x 18) - CSS와 동일 크기
-  ctx.fillRect(-9, -9, 18, 18);
-
-  // 왼쪽 위 원 (체력 하트 ::before 위치에 대응)
   ctx.beginPath();
-  ctx.arc(0, -9, 9, 0, Math.PI * 2);
-
-  // 오른쪽 위 원 (체력 하트 ::after 위치에 대응)
-  ctx.arc(9, 0, 9, 0, Math.PI * 2);
+  // 아래 꼭짓점
+  ctx.moveTo(0, 6);
+  // 왼쪽 곡선
+  ctx.bezierCurveTo(-5, 2, -7, -4, 0, -7);
+  // 오른쪽 곡선
+  ctx.bezierCurveTo(7, -4, 5, 2, 0, 6);
+  ctx.closePath();
 
   ctx.fill();
   ctx.restore();
