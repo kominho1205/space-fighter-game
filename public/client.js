@@ -39,7 +39,7 @@ socket.on("connect", () => {
   mySocketId = socket.id;
 });
 
-socket.on("waiting", (data) => {
+socket.on("waiting", () => {
   matchStatusEl.textContent = "상대 플레이어를 기다리는 중입니다...";
   showOverlay("상대 플레이어를 기다리는 중입니다...");
 });
@@ -59,7 +59,7 @@ socket.on("state", (state) => {
   updateUI();
 });
 
-socket.on("game_over", ({ winner, loser }) => {
+socket.on("game_over", ({ winner }) => {
   const isWinner = winner === mySocketId;
   const text = isWinner
     ? "승리했습니다!\n\n다시 시작 버튼을 눌러 같은 상대와 재대전을 요청하세요."
@@ -271,17 +271,22 @@ function drawFighter(p) {
   ctx.restore();
 }
 
-// 하트 아이템: 정상 방향 하트로 다시 그림
+// 하트 아이템: 체력 하트와 같은 구조 + 좌우 간격 넓힘
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
+  ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = "#ff4b69";
+
+  // 중앙 네모
+  ctx.fillRect(-9, -9, 18, 18);
+
+  // 좌우 원 위치를 좀 더 벌림 (CSS와 비슷한 비율)
   ctx.beginPath();
-  ctx.moveTo(0, 6);
-  ctx.bezierCurveTo(-8, 0, -8, -8, 0, -8);
-  ctx.bezierCurveTo(8, -8, 8, 0, 0, 6);
-  ctx.closePath();
+  ctx.arc(-11, 0, 9, 0, Math.PI * 2); // 왼쪽 원
+  ctx.arc(2, -9, 9, 0, Math.PI * 2);  // 오른쪽 원
   ctx.fill();
+
   ctx.restore();
 }
 
@@ -308,10 +313,15 @@ function drawAmmoItem(x, y) {
   ctx.fillStyle = "#2f7bff";
   ctx.strokeStyle = "#c4ddff";
   ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.roundRect(-10, -10, 20, 20, 4);
-  ctx.fill();
-  ctx.stroke();
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(-10, -10, 20, 20, 4);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillRect(-10, -10, 20, 20);
+    ctx.strokeRect(-10, -10, 20, 20);
+  }
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(-2, -6, 4, 12); // 탄알 모양
