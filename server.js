@@ -1,3 +1,4 @@
+const path = require("path");
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -8,527 +9,539 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, "public")));
 
-// ---------------- 프로필 / 랭크 ----------------
+server.listen(PORT, () => {
+  console.log("Space Z server running on port", PORT);
+});
 
-const profiles = new Map();
-// userId -> { userId, nickname, score, unlockedSkins:Set, preferredSkin }
+/* ---------------- 유저 / 프로필 ---------------- */
 
-function getOrCreateProfile(userId) {
-  let p = profiles.get(userId);
-  if (!p) {
-    p = {
+const users = new Map(); // userId -> { userId, nickname, score, unlockedSkins:number[], preferredSkin:number }
+
+function getOrCreateUser(userId, nickname) {
+  let u = users.get(userId);
+  if (!u) {
+    u = {
       userId,
-      nickname: "게스트",
+      nickname: nickname || "Guest",
       score: 0,
-      unlockedSkins: new Set([0]), // 처음엔 기본 스킨만
+      unlockedSkins: [0],
       preferredSkin: 0
     };
-    profiles.set(userId, p);
+    users.set(userId, u);
+  } else if (nickname && nickname !== u.nickname) {
+    u.nickname = nickname;
   }
-  return p;
+  // 항상 기본 스킨은 열려 있게
+  if (!u.unlockedSkins.includes(0)) u.unlockedSkins.push(0);
+  return u;
 }
 
-function updateSkinUnlocks(profile) {
-  const s = profile.score;
-  if (s >= 0) profile.unlockedSkins.add(0);   // 기본
-  if (s >= 200) profile.unlockedSkins.add(1); // 와이드
-  if (s >= 400) profile.unlockedSkins.add(2); // 다트
-  if (s >= 700) profile.unlockedSkins.add(3); // 레이저
+function serializeProfile(u) {
+  return {
+    userId: u.userId,
+    nickname: u.nickname,
+    score: u.score,
+    unlockedSkins: u.unlockedSkins,
+    preferredSkin: u.preferredSkin
+  };
 }
 
-// ---------------- 게임 상수 ----------------
+/* ---------------- 매칭 / 게임 상태 ---------------- */
 
-let waitingPlayer = null;
-const rooms = new Map();
+let waitingPlayer = null; // { socket, user, timeout }
 
-let roomCounter = 1;
-function createRoomId() {
-  return "room_" + roomCounter++;
+const games = new Map(); // matchId -> game
+const socketMatch = new Map(); // socket.id -> matchId
+
+function generateMatchId() {
+  return "m_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
-const GAME_WIDTH = 800;
-const GAME_HEIGHT = 600;
-const PLAYER_SPEED = 260;
-const BULLET_SPEED = 420;
-const DEFAULT_MAX_HP = 3;
-const AMMO_MAX = 100;
-const AMMO_REGEN_PER_SEC = 20;
-const AMMO_COST_PER_SHOT = 35;
-const SHIELD_DURATION_MS = 2000;
-const HIT_INV_MS = 1000;              // 피격 후 무적 시간 (1초)
-const ITEM_SPAWN_INTERVAL_MS = 7000;
-const ITEM_RADIUS = 15;
-const PLAYER_RADIUS = 22;
-const EXPLOSION_DURATION_MS = 350;
-
-// 스킨별 능력치
-function getSkinStats(skinId) {
-  switch (skinId) {
-    case 1: // 와이드: HP 4, 속도 0.85배
-      return { maxHp: 4, moveSpeed: PLAYER_SPEED * 0.85 };
-    case 2: // 다트: HP 3, 속도 1.15배
-      return { maxHp: 3, moveSpeed: PLAYER_SPEED * 1.15 };
-    case 3: // 레이저: HP 3, 기본 속도
-      return { maxHp: 3, moveSpeed: PLAYER_SPEED };
-    default: // 기본
-      return { maxHp: DEFAULT_MAX_HP, moveSpeed: PLAYER_SPEED };
-  }
+function getUserBySocket(socket) {
+  const userId = socket._userId;
+  if (!userId) return null;
+  return users.get(userId);
 }
 
-// ---------------- 방 상태 초기화 ----------------
+function findGameBySocketId(socketId) {
+  const matchId = socketMatch.get(socketId);
+  if (!matchId) return null;
+  return games.get(matchId) || null;
+}
 
-function initRoomState(roomId, socketId1, socketId2) {
-  const middleX = GAME_WIDTH / 2;
-  const bottomY = GAME_HEIGHT - 80;
-  const topY = 80;
+/* ---------------- 게임 생성 ---------------- */
+
+function makeNewGame(matchId, players, options) {
   const now = Date.now();
-
-  const players = {};
-
-  const s1 = io.sockets.sockets.get(socketId1);
-  const s2 = io.sockets.sockets.get(socketId2);
-
-  const skin1 = s1?.data.profile?.preferredSkin ?? 0;
-  const skin2 = s2?.data.profile?.preferredSkin ?? 0;
-
-  const stats1 = getSkinStats(skin1);
-  const stats2 = getSkinStats(skin2);
-
-  players[socketId1] = {
-    socketId: socketId1,
-    role: "bottom",
-    x: middleX,
-    y: bottomY,
-    width: 40,
-    height: 40,
-    hp: stats1.maxHp,
-    maxHp: stats1.maxHp,
-    moveSpeed: stats1.moveSpeed,
-    ammo: AMMO_MAX,
-    input: { up: false, down: false, left: false, right: false },
-    shieldUntil: 0,
-    hitInvUntil: 0,
-    skinId: skin1
-  };
-
-  players[socketId2] = {
-    socketId: socketId2,
-    role: "top",
-    x: middleX,
-    y: topY,
-    width: 40,
-    height: 40,
-    hp: stats2.maxHp,
-    maxHp: stats2.maxHp,
-    moveSpeed: stats2.moveSpeed,
-    ammo: AMMO_MAX,
-    input: { up: false, down: false, left: false, right: false },
-    shieldUntil: 0,
-    hitInvUntil: 0,
-    skinId: skin2
-  };
-
-  const roomState = {
-    id: roomId,
-    sockets: [socketId1, socketId2],
-    players,
+  const game = {
+    id: matchId,
+    ai: !!options.ai,
+    players: [],
     bullets: [],
     items: [],
     explosions: [],
-    lastItemSpawnAt: now,
-    restartReady: {},
-    lastUpdateAt: now,
-    gameOver: false,
-    loopTimer: null
+    lastUpdate: now,
+    itemSpawnTimer: 0
   };
 
-  rooms.set(roomId, roomState);
-  startGameLoop(roomState);
-  return roomState;
+  players.forEach((p) => {
+    const isBottom = p.role === "bottom";
+    const baseHp = 3;
+    let hp = baseHp;
+
+    const skinId = p.user.preferredSkin ?? 0;
+    if (skinId === 1) hp = 4; // 와이드 스킨
+
+    const obj = {
+      socket: p.socket || null,
+      socketId: p.socket ? p.socket.id : `ai_${matchId}`,
+      userId: p.user.userId,
+      nickname: p.user.nickname,
+      role: p.role,
+      skinId,
+      x: 400,
+      y: isBottom ? 520 : 80,
+      vx: 0,
+      vy: 0,
+      hp,
+      maxHp: hp,
+      ammo: 100,
+      shieldActive: false,
+      shieldTimer: 0,
+      hitInvActive: false,
+      hitInvTimer: 0,
+      moveInput: { up: false, down: false, left: false, right: false },
+      scoreSnapshot: p.user.score,
+      _shootCooldown: 0
+    };
+    game.players.push(obj);
+
+    if (p.socket) {
+      p.socket.join(matchId);
+      socketMatch.set(p.socket.id, matchId);
+    }
+  });
+
+  return game;
 }
 
-function startGameLoop(roomState) {
-  const TICK_RATE = 60;
-  const tickInterval = 1000 / TICK_RATE;
+function createHumanMatch(p1, p2) {
+  const matchId = generateMatchId();
+  const game = makeNewGame(
+    matchId,
+    [
+      { socket: p1.socket, user: p1.user, role: "bottom" },
+      { socket: p2.socket, user: p2.user, role: "top" }
+    ],
+    { ai: false }
+  );
+  games.set(matchId, game);
 
-  roomState.lastUpdateAt = Date.now();
-  roomState.loopTimer = setInterval(() => {
-    stepRoom(roomState);
-  }, tickInterval);
+  p1.socket.emit("match_found", { role: "bottom" });
+  p2.socket.emit("match_found", { role: "top" });
 }
 
-function stopGameLoop(roomState) {
-  if (roomState.loopTimer) {
-    clearInterval(roomState.loopTimer);
-    roomState.loopTimer = null;
+function createAIMatch(entry) {
+  const matchId = generateMatchId();
+  const game = makeNewGame(
+    matchId,
+    [{ socket: entry.socket, user: entry.user, role: "bottom" }],
+    { ai: true }
+  );
+  games.set(matchId, game);
+
+  entry.socket.emit("match_found", { role: "bottom", vsAI: true });
+}
+
+/* ---------------- 게임 종료 / 이탈 처리 ---------------- */
+
+function finishGame(game, winnerSocketId) {
+  // 점수 반영
+  game.players.forEach((p) => {
+    const u = users.get(p.userId);
+    if (!u) return;
+
+    if (p.socketId === winnerSocketId) {
+      u.score += 10;
+    } else {
+      u.score = Math.max(0, u.score - 5);
+    }
+  });
+
+  // game_over 이벤트
+  game.players.forEach((p) => {
+    if (p.socket) {
+      p.socket.emit("game_over", { winner: winnerSocketId });
+      // 최신 프로필 다시 보내기
+      const u = users.get(p.userId);
+      if (u) {
+        p.socket.emit("profile", serializeProfile(u));
+      }
+    }
+    if (p.socket) {
+      p.socket.leave(game.id);
+      socketMatch.delete(p.socket.id);
+    }
+  });
+
+  games.delete(game.id);
+}
+
+function destroyGame(game) {
+  game.players.forEach((p) => {
+    if (p.socket) {
+      p.socket.leave(game.id);
+      socketMatch.delete(p.socket.id);
+    }
+  });
+  games.delete(game.id);
+}
+
+function leaveCurrentGame(socket, options = {}) {
+  const { countAsLose = false } = options;
+  const game = findGameBySocketId(socket.id);
+  if (!game) return;
+
+  const leaver = game.players.find((p) => p.socketId === socket.id);
+  const other = game.players.find((p) => p.socketId !== socket.id);
+
+  if (!leaver) return;
+
+  if (countAsLose && other) {
+    // 나간 쪽 패배, 남은 쪽 승리
+    finishGame(game, other.socketId);
+    if (other.socket) {
+      other.socket.emit("opponent_left");
+    }
+  } else {
+    destroyGame(game);
   }
 }
 
-// ---------------- 메인 게임 루프 ----------------
+/* ---------------- 게임 루프 ---------------- */
 
-function stepRoom(roomState) {
+const TICK_MS = 50;
+setInterval(() => {
   const now = Date.now();
-  const dt = (now - roomState.lastUpdateAt) / 1000;
-  roomState.lastUpdateAt = now;
+  for (const game of games.values()) {
+    const dt = (now - game.lastUpdate) / 1000;
+    game.lastUpdate = now;
+    updateGame(game, dt);
+    broadcastState(game);
+  }
+}, TICK_MS);
 
-  if (roomState.gameOver) return;
+function updateGame(game, dt) {
+  // 플레이어 이동
+  game.players.forEach((p) => {
+    const baseSpeed = 220;
+    let speed = baseSpeed;
+    if (p.skinId === 1) speed = 180; // 와이드 느림
+    if (p.skinId === 2) speed = 260; // 다트 빠름
 
-  // 플레이어 이동 + 탄약 회복
-  for (const socketId of roomState.sockets) {
-    const p = roomState.players[socketId];
-    if (!p) continue;
-
+    const m = p.moveInput;
     let vx = 0;
     let vy = 0;
-    if (p.input.left) vx -= 1;
-    if (p.input.right) vx += 1;
-    if (p.input.up) vy -= 1;
-    if (p.input.down) vy += 1;
+    if (m.left) vx -= speed;
+    if (m.right) vx += speed;
+    if (m.up) vy -= speed;
+    if (m.down) vy += speed;
 
-    const len = Math.sqrt(vx * vx + vy * vy);
-    if (len > 0) {
-      vx /= len;
-      vy /= len;
+    p.x += vx * dt;
+    p.y += vy * dt;
+
+    // 영역 제한
+    p.x = Math.max(40, Math.min(760, p.x));
+    p.y = Math.max(40, Math.min(560, p.y));
+
+    // 탄약 자동 회복
+    const regen = 22;
+    p.ammo = Math.min(100, p.ammo + regen * dt);
+
+    // 방어막, 피격 무적 시간 감소
+    if (p.shieldActive) {
+      p.shieldTimer -= dt;
+      if (p.shieldTimer <= 0) {
+        p.shieldActive = false;
+      }
+    }
+    if (p.hitInvActive) {
+      p.hitInvTimer -= dt;
+      if (p.hitInvTimer <= 0) {
+        p.hitInvActive = false;
+      }
     }
 
-    const speed = p.moveSpeed || PLAYER_SPEED;
+    if (p._shootCooldown > 0) p._shootCooldown -= dt;
+  });
 
-    p.x += vx * speed * dt;
-    p.y += vy * speed * dt;
+  // AI 동작
+  if (game.ai) {
+    const ai = game.players.find((p) => !p.socket);
+    const human = game.players.find((p) => p.socket);
+    if (ai && human) {
+      const speed = 180;
+      const dx = human.x - ai.x;
+      if (Math.abs(dx) > 8) {
+        ai.moveInput.left = dx < 0;
+        ai.moveInput.right = dx > 0;
+      } else {
+        ai.moveInput.left = ai.moveInput.right = false;
+      }
 
-    const halfW = p.width / 2;
-    const halfH = p.height / 2;
-    if (p.x < halfW) p.x = halfW;
-    if (p.x > GAME_WIDTH - halfW) p.x = GAME_WIDTH - halfW;
-    if (p.y < halfH) p.y = halfH;
-    if (p.y > GAME_HEIGHT - halfH) p.y = GAME_HEIGHT - halfH;
+      // 위/아래는 거의 고정
+      ai.moveInput.up = false;
+      ai.moveInput.down = false;
 
-    p.ammo += AMMO_REGEN_PER_SEC * dt;
-    if (p.ammo > AMMO_MAX) p.ammo = AMMO_MAX;
+      if (ai._shootCooldown <= 0 && ai.ammo >= 25) {
+        spawnBullet(game, ai);
+        ai.ammo -= 25;
+        ai._shootCooldown = 0.8 + Math.random() * 0.8;
+      }
+    }
   }
 
-  // 총알 이동
-  for (const bullet of roomState.bullets) {
-    bullet.x += bullet.vx * dt;
-    bullet.y += bullet.vy * dt;
+  // 아이템 스폰
+  game.itemSpawnTimer -= dt;
+  if (game.itemSpawnTimer <= 0) {
+    game.itemSpawnTimer = 4 + Math.random() * 3; // 4~7초
+    spawnRandomItem(game);
   }
 
-  // 화면 밖 총알 제거
-  roomState.bullets = roomState.bullets.filter(
-    (b) =>
-      b.x >= 0 &&
-      b.x <= GAME_WIDTH &&
-      b.y >= 0 &&
-      b.y <= GAME_HEIGHT
-  );
+  // 총알 이동 및 충돌
+  const BULLET_SPEED = 420;
+  const newBullets = [];
+  game.bullets.forEach((b) => {
+    b.y += b.vy * dt;
+    b.life -= dt;
+    if (b.life <= 0) return;
+    if (b.y < -20 || b.y > 620) return;
 
-  // 총알 - 플레이어 충돌
-  for (const bullet of roomState.bullets) {
-    for (const socketId of roomState.sockets) {
-      const p = roomState.players[socketId];
-      if (!p) continue;
-      if (bullet.owner === socketId) continue;
+    let hitSomething = false;
+    game.players.forEach((p) => {
+      if (p.socketId === b.ownerId) return;
 
-      const dx = bullet.x - p.x;
-      const dy = bullet.y - p.y;
-      const distSq = dx * dx + dy * dy;
-      if (distSq <= PLAYER_RADIUS * PLAYER_RADIUS) {
-        bullet._hit = true;
+      const dx = p.x - b.x;
+      const dy = p.y - b.y;
+      const dist = Math.hypot(dx, dy);
+      const hitRadius = 24;
 
-        roomState.explosions.push({
-          x: bullet.x,
-          y: bullet.y,
-          createdAt: now
-        });
-
-        if (now < p.shieldUntil) {
-          // 방어막
-        } else if (now < p.hitInvUntil) {
-          // 피격 무적 중
+      if (dist < hitRadius) {
+        hitSomething = true;
+        if (p.shieldActive) {
+          // 방어막이 대신 맞음
+        } else if (p.hitInvActive) {
+          // 무적 중이면 무시
         } else {
-          // 실제 피해
           p.hp -= 1;
-          p.hitInvUntil = now + HIT_INV_MS;
+          p.hitInvActive = true;
+          p.hitInvTimer = 1.0; // 1초간 무적
+
+          game.explosions.push({
+            x: b.x,
+            y: b.y,
+            age: 0
+          });
 
           if (p.hp <= 0) {
-            p.hp = 0;
-            roomState.gameOver = true;
-            const winnerId = roomState.sockets.find(
-              (id) => id !== socketId
-            );
-
-            // 승패에 따라 점수 업데이트
-            const loserSocket = io.sockets.sockets.get(socketId);
-            const winnerSocket = io.sockets.sockets.get(winnerId);
-
-            if (winnerSocket?.data.profile) {
-              const pf = winnerSocket.data.profile;
-              pf.score += 25;
-              updateSkinUnlocks(pf);
-              winnerSocket.emit("profile", {
-                nickname: pf.nickname,
-                score: pf.score,
-                unlockedSkins: Array.from(pf.unlockedSkins),
-                preferredSkin: pf.preferredSkin
-              });
-            }
-            if (loserSocket?.data.profile) {
-              const pf = loserSocket.data.profile;
-              pf.score = Math.max(0, pf.score - 15);
-              updateSkinUnlocks(pf);
-              loserSocket.emit("profile", {
-                nickname: pf.nickname,
-                score: pf.score,
-                unlockedSkins: Array.from(pf.unlockedSkins),
-                preferredSkin: pf.preferredSkin
-              });
-            }
-
-            io.to(roomState.id).emit("game_over", {
-              winner: winnerId,
-              loser: socketId
-            });
+            finishGame(game, b.ownerId);
           }
         }
       }
+    });
+
+    if (!hitSomething) {
+      newBullets.push(b);
     }
-  }
-  roomState.bullets = roomState.bullets.filter((b) => !b._hit);
+  });
+  game.bullets = newBullets;
 
-  // 아이템 생성
-  if (
-    now - roomState.lastItemSpawnAt >= ITEM_SPAWN_INTERVAL_MS &&
-    !roomState.gameOver
-  ) {
-    roomState.lastItemSpawnAt = now;
-    if (roomState.items.length < 2) {
-      const itemId =
-        "item_" + now + "_" + Math.floor(Math.random() * 10000);
-      const x = 80 + Math.random() * (GAME_WIDTH - 160);
-      const y = 120 + Math.random() * (GAME_HEIGHT - 240);
-
-      const r = Math.random();
-      let type;
-      if (r < 0.4) type = "heart";
-      else if (r < 0.8) type = "shield";
-      else type = "ammo";
-
-      roomState.items.push({ id: itemId, x, y, type });
-    }
-  }
+  // 폭발 이펙트 나이 증가
+  const newExplosions = [];
+  game.explosions.forEach((ex) => {
+    ex.age += dt;
+    if (ex.age < 0.5) newExplosions.push(ex);
+  });
+  game.explosions = newExplosions;
 
   // 아이템 획득
-  for (const socketId of roomState.sockets) {
-    const p = roomState.players[socketId];
-    if (!p) continue;
-    roomState.items.forEach((item) => {
-      const dx = item.x - p.x;
-      const dy = item.y - p.y;
-      const distSq = dx * dx + dy * dy;
-      const r = ITEM_RADIUS + PLAYER_RADIUS;
-      if (distSq <= r * r && !item._takenBy) {
-        item._takenBy = socketId;
+  const newItems = [];
+  game.items.forEach((item) => {
+    let taken = false;
+    game.players.forEach((p) => {
+      const dx = p.x - item.x;
+      const dy = p.y - item.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 26) {
+        taken = true;
         if (item.type === "heart") {
-          const maxHp = p.maxHp || DEFAULT_MAX_HP;
-          p.hp = Math.min(maxHp, p.hp + 1);
+          if (p.hp < p.maxHp) p.hp += 1;
         } else if (item.type === "shield") {
-          p.shieldUntil = now + SHIELD_DURATION_MS;
+          p.shieldActive = true;
+          p.shieldTimer = 2.0;
         } else if (item.type === "ammo") {
-          p.ammo = AMMO_MAX;
+          p.ammo = 100;
         }
       }
     });
+    if (!taken) newItems.push(item);
+  });
+  game.items = newItems;
+}
+
+function spawnRandomItem(game) {
+  const x = 80 + Math.random() * 640;
+  const y = 120 + Math.random() * 360;
+  const r = Math.random();
+  let type = "heart";
+  if (r < 0.33) type = "heart";
+  else if (r < 0.66) type = "shield";
+  else type = "ammo";
+
+  game.items.push({
+    id: "it_" + Math.random().toString(36).slice(2),
+    type,
+    x,
+    y
+  });
+}
+
+function spawnBullet(game, shooter) {
+  const dir = shooter.role === "bottom" ? -1 : 1;
+  const BULLET_SPEED = 420;
+  const skinId = shooter.skinId ?? 0;
+
+  let vy = BULLET_SPEED * dir;
+  let life = 2.0;
+
+  if (skinId === 3) {
+    // 레이저탄은 좀 더 빠르고 오래
+    vy = BULLET_SPEED * 1.1 * dir;
+    life = 2.2;
   }
-  roomState.items = roomState.items.filter((item) => !item._takenBy);
 
-  // 폭발 이펙트 수명 정리
-  roomState.explosions = roomState.explosions.filter(
-    (ex) => now - ex.createdAt < EXPLOSION_DURATION_MS
-  );
+  game.bullets.push({
+    x: shooter.x,
+    y: shooter.y + dir * -20,
+    vy,
+    ownerId: shooter.socketId,
+    skinId,
+    life
+  });
+}
 
-  // 상태 전송
-  const statePlayers = roomState.sockets
-    .map((socketId) => {
-      const p = roomState.players[socketId];
-      if (!p) return null;
-      const s = io.sockets.sockets.get(socketId);
-      const prof = s?.data.profile;
+function broadcastState(game) {
+  const state = {
+    players: game.players.map((p) => {
+      const u = users.get(p.userId);
       return {
         socketId: p.socketId,
         role: p.role,
         x: p.x,
         y: p.y,
-        width: p.width,
-        height: p.height,
         hp: p.hp,
-        maxHp: p.maxHp || DEFAULT_MAX_HP,
         ammo: p.ammo,
-        shieldActive: now < p.shieldUntil,
-        hitInvActive: now < p.hitInvUntil,
-        skinId: p.skinId ?? 0,
-        nickname: prof?.nickname || "플레이어",
-        score: prof?.score ?? 0
+        shieldActive: p.shieldActive,
+        hitInvActive: p.hitInvActive,
+        skinId: p.skinId,
+        score: u ? u.score : p.scoreSnapshot
       };
-    })
-    .filter(Boolean);
-
-  const stateBullets = roomState.bullets.map((b) => ({
-    x: b.x,
-    y: b.y,
-    skinId: b.skinId ?? 0
-  }));
-
-  const state = {
-    gameWidth: GAME_WIDTH,
-    gameHeight: GAME_HEIGHT,
-    players: statePlayers,
-    bullets: stateBullets,
-    items: roomState.items.map((i) => ({
-      id: i.id,
-      x: i.x,
-      y: i.y,
-      type: i.type
+    }),
+    bullets: game.bullets.map((b) => ({
+      x: b.x,
+      y: b.y,
+      skinId: b.skinId
     })),
-    explosions: roomState.explosions.map((ex) => ({
+    items: game.items.map((it) => ({
+      type: it.type,
+      x: it.x,
+      y: it.y
+    })),
+    explosions: game.explosions.map((ex) => ({
       x: ex.x,
       y: ex.y,
-      age: Math.min(
-        (now - ex.createdAt) / EXPLOSION_DURATION_MS,
-        1
-      )
+      age: ex.age
     }))
   };
 
-  io.to(roomState.id).emit("state", state);
+  io.to(game.id).emit("state", state);
 }
 
-// ---------------- 유틸 ----------------
-
-function handleShoot(socket, roomState) {
-  const player = roomState.players[socket.id];
-  if (!player || roomState.gameOver) return;
-
-  if (player.ammo < AMMO_COST_PER_SHOT) return;
-  player.ammo -= AMMO_COST_PER_SHOT;
-
-  const dirY = player.role === "bottom" ? -1 : 1;
-
-  const bullet = {
-    x: player.x,
-    y: player.y + (dirY * -player.height) / 2,
-    vx: 0,
-    vy: player.role === "bottom" ? -BULLET_SPEED : BULLET_SPEED,
-    owner: socket.id,
-    skinId: player.skinId ?? 0
-  };
-
-  roomState.bullets.push(bullet);
-}
-
-function resetRoomState(roomState) {
-  const now = Date.now();
-  for (const socketId of roomState.sockets) {
-    const p = roomState.players[socketId];
-    if (!p) continue;
-
-    const stats = getSkinStats(p.skinId ?? 0);
-    p.maxHp = stats.maxHp;
-    p.moveSpeed = stats.moveSpeed;
-    p.hp = p.maxHp;
-    p.ammo = AMMO_MAX;
-    p.shieldUntil = 0;
-    p.hitInvUntil = 0;
-    p.input = { up: false, down: false, left: false, right: false };
-
-    if (p.role === "bottom") {
-      p.x = GAME_WIDTH / 2;
-      p.y = GAME_HEIGHT - 80;
-    } else {
-      p.x = GAME_WIDTH / 2;
-      p.y = 80;
-    }
-  }
-  roomState.bullets = [];
-  roomState.items = [];
-  roomState.explosions = [];
-  roomState.lastItemSpawnAt = now;
-  roomState.restartReady = {};
-  roomState.gameOver = false;
-}
-
-// ---------------- 소켓 이벤트 ----------------
+/* ---------------- 소켓 이벤트 ---------------- */
 
 io.on("connection", (socket) => {
-  console.log("Client connected:", socket.id);
+  console.log("connected:", socket.id);
 
-  // 익명 계정 식별
+  socket._userId = null;
+
   socket.on("identify", ({ userId, nickname }) => {
-    if (!userId || typeof userId !== "string") return;
-    const profile = getOrCreateProfile(userId);
-    if (nickname && typeof nickname === "string") {
-      profile.nickname = nickname.slice(0, 16);
-    }
-    socket.data.userId = userId;
-    socket.data.profile = profile;
-    updateSkinUnlocks(profile);
-
-    socket.emit("profile", {
-      nickname: profile.nickname,
-      score: profile.score,
-      unlockedSkins: Array.from(profile.unlockedSkins),
-      preferredSkin: profile.preferredSkin
-    });
+    if (!userId) return;
+    const u = getOrCreateUser(userId, nickname);
+    socket._userId = userId;
+    socket.emit("profile", serializeProfile(u));
   });
 
-  // 리더보드
+  socket.on("set_skin", ({ skinId }) => {
+    const u = getUserBySocket(socket);
+    if (!u) return;
+    if (!u.unlockedSkins.includes(skinId)) return;
+    u.preferredSkin = skinId;
+    socket.emit("profile", serializeProfile(u));
+  });
+
   socket.on("get_leaderboard", (cb) => {
-    const list = Array.from(profiles.values())
+    const list = Array.from(users.values())
       .sort((a, b) => b.score - a.score)
       .slice(0, 50)
-      .map((p) => ({
-        nickname: p.nickname || "게스트",
-        score: p.score
+      .map((u) => ({
+        nickname: u.nickname,
+        score: u.score
       }));
-    if (typeof cb === "function") cb(list);
+    cb(list);
   });
 
   socket.on("find_match", () => {
-    if (waitingPlayer && waitingPlayer !== socket.id) {
-      const otherId = waitingPlayer;
+    leaveCurrentGame(socket); // 이전 게임이 있으면 정리
+
+    const user = getUserBySocket(socket);
+    if (!user) return;
+
+    if (waitingPlayer && waitingPlayer.socket.id !== socket.id) {
+      clearTimeout(waitingPlayer.timeout);
+      const p1 = waitingPlayer;
+      const p2 = { socket, user };
+      createHumanMatch(p1, p2);
       waitingPlayer = null;
-
-      const roomId = createRoomId();
-      socket.join(roomId);
-      io.sockets.sockets.get(otherId)?.join(roomId);
-
-      initRoomState(roomId, otherId, socket.id);
-      console.log(`Room created: ${roomId} with ${otherId} and ${socket.id}`);
-
-      io.to(otherId).emit("match_found", { roomId, role: "bottom" });
-      io.to(socket.id).emit("match_found", { roomId, role: "top" });
     } else {
-      waitingPlayer = socket.id;
-      socket.emit("waiting", {
-        message: "Waiting for another player..."
-      });
+      if (waitingPlayer && waitingPlayer.socket.id === socket.id) return; // 이미 대기 중
+
+      waitingPlayer = {
+        socket,
+        user,
+        timeout: setTimeout(() => {
+          if (!waitingPlayer || waitingPlayer.socket.id !== socket.id) return;
+          createAIMatch(waitingPlayer);
+          waitingPlayer = null;
+        }, 15000)
+      };
+
+      socket.emit("waiting");
     }
   });
 
-  socket.on("move", (input) => {
-    const roomsJoined = Array.from(socket.rooms).filter((r) =>
-      r.startsWith("room_")
-    );
-    if (roomsJoined.length === 0) return;
-    const roomId = roomsJoined[0];
-    const roomState = rooms.get(roomId);
-    if (!roomState) return;
+  socket.on("leave_match", () => {
+    leaveCurrentGame(socket, { countAsLose: true });
+  });
 
-    const player = roomState.players[socket.id];
+  socket.on("move", (input) => {
+    const game = findGameBySocketId(socket.id);
+    if (!game) return;
+    const player = game.players.find((p) => p.socketId === socket.id);
     if (!player) return;
 
-    player.input = {
+    player.moveInput = {
       up: !!input.up,
       down: !!input.down,
       left: !!input.left,
@@ -537,103 +550,61 @@ io.on("connection", (socket) => {
   });
 
   socket.on("shoot", () => {
-    const roomsJoined = Array.from(socket.rooms).filter((r) =>
-      r.startsWith("room_")
-    );
-    if (roomsJoined.length === 0) return;
-    const roomId = roomsJoined[0];
-    const roomState = rooms.get(roomId);
-    if (!roomState) return;
-
-    handleShoot(socket, roomState);
-  });
-
-  // 스킨 설정
-  socket.on("set_skin", ({ skinId }) => {
-    const profile = socket.data.profile;
-    if (!profile) return;
-    const id = Number(skinId);
-    if (!profile.unlockedSkins.has(id)) return;
-
-    profile.preferredSkin = id;
-
-    socket.emit("profile", {
-      nickname: profile.nickname,
-      score: profile.score,
-      unlockedSkins: Array.from(profile.unlockedSkins),
-      preferredSkin: profile.preferredSkin
-    });
-
-    // 현재 방에 있으면 해당 플레이어 스탯도 갱신(현재 판에도 적용)
-    const roomsJoined = Array.from(socket.rooms).filter((r) =>
-      r.startsWith("room_")
-    );
-    if (roomsJoined.length === 0) return;
-    const roomId = roomsJoined[0];
-    const roomState = rooms.get(roomId);
-    if (!roomState) return;
-    const player = roomState.players[socket.id];
+    const game = findGameBySocketId(socket.id);
+    if (!game) return;
+    const player = game.players.find((p) => p.socketId === socket.id);
     if (!player) return;
 
-    const stats = getSkinStats(id);
-    player.skinId = id;
-    player.maxHp = stats.maxHp;
-    if (player.hp > stats.maxHp) player.hp = stats.maxHp;
-    player.moveSpeed = stats.moveSpeed;
+    if (player._shootCooldown > 0) return;
+    if (player.ammo < 25) return;
+
+    player._shootCooldown = 0.15;
+    player.ammo -= 25;
+    spawnBullet(game, player);
   });
 
   socket.on("restart_request", () => {
-    const roomsJoined = Array.from(socket.rooms).filter((r) =>
-      r.startsWith("room_")
-    );
-    if (roomsJoined.length === 0) return;
-    const roomId = roomsJoined[0];
-    const roomState = rooms.get(roomId);
-    if (!roomState) return;
+    const game = findGameBySocketId(socket.id);
+    if (!game) return;
 
-    roomState.restartReady[socket.id] = true;
-    const otherId = roomState.sockets.find((id) => id !== socket.id);
+    if (!game.restartStatus) game.restartStatus = {};
+    game.restartStatus[socket.id] = true;
 
-    io.to(roomId).emit("restart_status", {
-      [socket.id]: true,
-      [otherId]: !!roomState.restartReady[otherId]
+    const statusCopy = { ...game.restartStatus };
+    game.players.forEach((p) => {
+      if (p.socket) p.socket.emit("restart_status", statusCopy);
     });
 
-    if (
-      otherId &&
-      roomState.restartReady[socket.id] &&
-      roomState.restartReady[otherId]
-    ) {
-      resetRoomState(roomState);
-      io.to(roomId).emit("restart");
+    const allReady =
+      game.players.filter((p) => p.socket).every((p) => game.restartStatus[p.socket.id]);
+
+    if (allReady) {
+      // 새 상태로 재시작
+      const matchId = game.id;
+      const playersInfo = game.players.map((p) => ({
+        socket: p.socket,
+        user: users.get(p.userId),
+        role: p.role
+      }));
+      destroyGame(game);
+      const newGame = makeNewGame(matchId, playersInfo, { ai: game.ai });
+      games.set(matchId, newGame);
+      newGame.players.forEach((p) => {
+        if (p.socket) {
+          p.socket.emit("restart");
+        }
+      });
     }
   });
 
   socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
+    console.log("disconnected:", socket.id);
 
-    if (waitingPlayer === socket.id) {
+    if (waitingPlayer && waitingPlayer.socket.id === socket.id) {
+      clearTimeout(waitingPlayer.timeout);
       waitingPlayer = null;
     }
 
-    const joinedRooms = Array.from(socket.rooms).filter((r) =>
-      r.startsWith("room_")
-    );
-    joinedRooms.forEach((roomId) => {
-      const roomState = rooms.get(roomId);
-      if (!roomState) return;
-
-      const otherId = roomState.sockets.find((id) => id !== socket.id);
-      if (otherId) {
-        io.to(otherId).emit("opponent_left");
-      }
-
-      stopGameLoop(roomState);
-      rooms.delete(roomId);
-    });
+    leaveCurrentGame(socket, { countAsLose: true });
   });
-});
-
-server.listen(PORT, () => {
-  console.log("Server running on port", PORT);
 });
