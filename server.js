@@ -113,7 +113,7 @@ function makeNewGame(matchId, players, options) {
       hitInvActive: false,
       hitInvTimer: 0,
       moveInput: { up: false, down: false, left: false, right: false },
-      scoreSnapshot: p.user.score,
+      scoreSnapshot: p.user.score ?? 0,
       _shootCooldown: 0
     };
     game.players.push(obj);
@@ -145,11 +145,25 @@ function createHumanMatch(p1, p2) {
 
 function createAIMatch(entry) {
   const matchId = generateMatchId();
+
+  // AI용 가짜 유저 (랭킹에는 반영 안 됨: users Map에 안 넣음)
+  const aiUser = {
+    userId: "ai_" + matchId,
+    nickname: "AI",
+    score: 0,
+    unlockedSkins: [0],
+    preferredSkin: 0
+  };
+
   const game = makeNewGame(
     matchId,
-    [{ socket: entry.socket, user: entry.user, role: "bottom" }],
+    [
+      { socket: entry.socket, user: entry.user, role: "bottom" },
+      { socket: null, user: aiUser, role: "top" }
+    ],
     { ai: true }
   );
+
   games.set(matchId, game);
 
   entry.socket.emit("match_found", { role: "bottom", vsAI: true });
@@ -161,7 +175,7 @@ function finishGame(game, winnerSocketId) {
   // 점수 반영
   game.players.forEach((p) => {
     const u = users.get(p.userId);
-    if (!u) return;
+    if (!u) return; // AI는 여기서 스킵
 
     if (p.socketId === winnerSocketId) {
       u.score += 10;
@@ -174,7 +188,6 @@ function finishGame(game, winnerSocketId) {
   game.players.forEach((p) => {
     if (p.socket) {
       p.socket.emit("game_over", { winner: winnerSocketId });
-      // 최신 프로필 다시 보내기
       const u = users.get(p.userId);
       if (u) {
         p.socket.emit("profile", serializeProfile(u));
@@ -210,7 +223,6 @@ function leaveCurrentGame(socket, options = {}) {
   if (!leaver) return;
 
   if (countAsLose && other) {
-    // 나간 쪽 패배, 남은 쪽 승리
     finishGame(game, other.socketId);
     if (other.socket) {
       other.socket.emit("opponent_left");
@@ -234,7 +246,7 @@ setInterval(() => {
 }, TICK_MS);
 
 function updateGame(game, dt) {
-  // 플레이어 이동
+  // 플레이어 이동/회복/타이머
   game.players.forEach((p) => {
     const baseSpeed = 220;
     let speed = baseSpeed;
@@ -252,26 +264,19 @@ function updateGame(game, dt) {
     p.x += vx * dt;
     p.y += vy * dt;
 
-    // 영역 제한
     p.x = Math.max(40, Math.min(760, p.x));
     p.y = Math.max(40, Math.min(560, p.y));
 
-    // 탄약 자동 회복
     const regen = 22;
     p.ammo = Math.min(100, p.ammo + regen * dt);
 
-    // 방어막, 피격 무적 시간 감소
     if (p.shieldActive) {
       p.shieldTimer -= dt;
-      if (p.shieldTimer <= 0) {
-        p.shieldActive = false;
-      }
+      if (p.shieldTimer <= 0) p.shieldActive = false;
     }
     if (p.hitInvActive) {
       p.hitInvTimer -= dt;
-      if (p.hitInvTimer <= 0) {
-        p.hitInvActive = false;
-      }
+      if (p.hitInvTimer <= 0) p.hitInvActive = false;
     }
 
     if (p._shootCooldown > 0) p._shootCooldown -= dt;
@@ -290,8 +295,6 @@ function updateGame(game, dt) {
       } else {
         ai.moveInput.left = ai.moveInput.right = false;
       }
-
-      // 위/아래는 거의 고정
       ai.moveInput.up = false;
       ai.moveInput.down = false;
 
@@ -306,12 +309,11 @@ function updateGame(game, dt) {
   // 아이템 스폰
   game.itemSpawnTimer -= dt;
   if (game.itemSpawnTimer <= 0) {
-    game.itemSpawnTimer = 4 + Math.random() * 3; // 4~7초
+    game.itemSpawnTimer = 4 + Math.random() * 3;
     spawnRandomItem(game);
   }
 
-  // 총알 이동 및 충돌
-  const BULLET_SPEED = 420;
+  // 총알 이동/충돌
   const newBullets = [];
   game.bullets.forEach((b) => {
     b.y += b.vy * dt;
@@ -331,13 +333,13 @@ function updateGame(game, dt) {
       if (dist < hitRadius) {
         hitSomething = true;
         if (p.shieldActive) {
-          // 방어막이 대신 맞음
+          // 방어막이 맞고 끝
         } else if (p.hitInvActive) {
           // 무적 중이면 무시
         } else {
           p.hp -= 1;
           p.hitInvActive = true;
-          p.hitInvTimer = 1.0; // 1초간 무적
+          p.hitInvTimer = 1.0;
 
           game.explosions.push({
             x: b.x,
@@ -352,13 +354,11 @@ function updateGame(game, dt) {
       }
     });
 
-    if (!hitSomething) {
-      newBullets.push(b);
-    }
+    if (!hitSomething) newBullets.push(b);
   });
   game.bullets = newBullets;
 
-  // 폭발 이펙트 나이 증가
+  // 폭발 이펙트
   const newExplosions = [];
   game.explosions.forEach((ex) => {
     ex.age += dt;
@@ -417,7 +417,6 @@ function spawnBullet(game, shooter) {
   let life = 2.0;
 
   if (skinId === 3) {
-    // 레이저탄은 좀 더 빠르고 오래
     vy = BULLET_SPEED * 1.1 * dir;
     life = 2.2;
   }
@@ -515,7 +514,7 @@ io.on("connection", (socket) => {
       createHumanMatch(p1, p2);
       waitingPlayer = null;
     } else {
-      if (waitingPlayer && waitingPlayer.socket.id === socket.id) return; // 이미 대기 중
+      if (waitingPlayer && waitingPlayer.socket.id === socket.id) return;
 
       waitingPlayer = {
         socket,
@@ -575,15 +574,21 @@ io.on("connection", (socket) => {
       if (p.socket) p.socket.emit("restart_status", statusCopy);
     });
 
-    const allReady =
-      game.players.filter((p) => p.socket).every((p) => game.restartStatus[p.socket.id]);
+    const allReady = game.players
+      .filter((p) => p.socket)
+      .every((p) => game.restartStatus[p.socket.id]);
 
     if (allReady) {
-      // 새 상태로 재시작
       const matchId = game.id;
       const playersInfo = game.players.map((p) => ({
         socket: p.socket,
-        user: users.get(p.userId),
+        user: users.get(p.userId) || {
+          userId: p.userId,
+          nickname: p.nickname,
+          score: p.scoreSnapshot,
+          unlockedSkins: [p.skinId],
+          preferredSkin: p.skinId
+        },
         role: p.role
       }));
       destroyGame(game);
