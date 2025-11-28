@@ -31,7 +31,6 @@ function showScreen(name) {
   });
 }
 
-// 초기 화면
 if (nickname) {
   showScreen("home");
 } else {
@@ -67,17 +66,19 @@ socket.on("profile", (p) => {
 });
 
 // 닉네임 입력
-document.getElementById("nicknameConfirmBtn").addEventListener("click", () => {
-  const input = document.getElementById("nicknameInput");
-  const value = input.value.trim();
-  if (!value) return;
-  nickname = value;
-  localStorage.setItem("spacezNickname", nickname);
-  socket.emit("identify", { userId, nickname });
-  showScreen("home");
-});
+document
+  .getElementById("nicknameConfirmBtn")
+  .addEventListener("click", () => {
+    const input = document.getElementById("nicknameInput");
+    const value = input.value.trim();
+    if (!value) return;
+    nickname = value;
+    localStorage.setItem("spacezNickname", nickname);
+    socket.emit("identify", { userId, nickname });
+    showScreen("home");
+  });
 
-// 홈
+// 홈 화면
 document.getElementById("btnPlay").addEventListener("click", () => {
   currentState = null;
   myRole = null;
@@ -110,16 +111,16 @@ document.getElementById("btnSkinsBack").addEventListener("click", () => {
 });
 
 document.getElementById("btnGameBack").addEventListener("click", () => {
+  socket.emit("leave_match");
   showScreen("home");
 });
 
-// 랭킹
+// 랭킹 렌더링 (ol 이 번호 붙이므로 idx+1 제거)
 function renderLeaderboard(list) {
   const ul = document.getElementById("rankingList");
   ul.innerHTML = "";
-  list.forEach((p, idx) => {
+  list.forEach((p) => {
     const li = document.createElement("li");
-    // 기존: `${idx + 1}. ${p.nickname} - ${p.score}`
     li.textContent = `${p.nickname} - ${p.score}`;
     ul.appendChild(li);
   });
@@ -147,7 +148,7 @@ function renderSkinList() {
     const locked = !unlocked.has(skin.id);
 
     const btnLabel = locked
-      ? `잠김`
+      ? "잠김"
       : latestProfile.preferredSkin === skin.id
       ? "선택됨"
       : "선택";
@@ -219,10 +220,14 @@ socket.on("waiting", () => {
 
 socket.on("match_found", (data) => {
   myRole = data.role;
-  matchStatusEl.textContent =
-    myRole === "bottom"
-      ? "매칭 완료! 아래 전투기를 조종합니다."
-      : "매칭 완료! 위 전투기를 조종합니다.";
+  if (data.vsAI) {
+    matchStatusEl.textContent = "AI와 매칭되었습니다. 아래 전투기를 조종합니다.";
+  } else {
+    matchStatusEl.textContent =
+      myRole === "bottom"
+        ? "매칭 완료! 아래 전투기를 조종합니다."
+        : "매칭 완료! 위 전투기를 조종합니다.";
+  }
   restartStatus = { me: false, other: false };
   restartBtn.disabled = true;
   hideOverlay();
@@ -266,7 +271,7 @@ socket.on("restart", () => {
   hideOverlay();
 });
 
-// ★ 상대가 게임에서 나갔을 때
+// 상대 이탈
 socket.on("opponent_left", () => {
   showOverlay(
     "상대가 게임을 떠났습니다.\n상대는 패배 처리되고,\n나에게는 승리로 기록됩니다.\n\n홈으로 돌아가 새 게임을 시작하세요."
@@ -338,7 +343,8 @@ restartBtn.addEventListener("click", () => {
   restartBtn.disabled = true;
 });
 
-// 모바일/마우스 버튼 -> 키 매핑
+// ----- 모바일 FIRE 버튼만 Space에 매핑 -----
+
 function registerButtonHold(buttonId, keyName) {
   const el = document.getElementById(buttonId);
   if (!el) return;
@@ -369,20 +375,90 @@ function registerButtonHold(buttonId, keyName) {
   el.addEventListener("mouseleave", release);
 }
 
-registerButtonHold("btnUp", "ArrowUp");
-registerButtonHold("btnDown", "ArrowDown");
-registerButtonHold("btnLeft", "ArrowLeft");
-registerButtonHold("btnRight", "ArrowRight");
 registerButtonHold("btnFire", "Space");
 
-// 모바일에서 캔버스/조작 버튼만 스크롤 막기
+// ----- 가상 조이스틱 -----
+
+const joystickBase = document.getElementById("joystickBase");
+const joystickStick = document.getElementById("joystickStick");
+
+let joystickActive = false;
+let joystickPointerId = null;
+
+if (joystickBase && joystickStick) {
+  const maxRadius = 36;
+  const deadZone = 0.25;
+
+  const updateFromEvent = (e) => {
+    const rect = joystickBase.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+
+    const dx = e.clientX - cx;
+    const dy = e.clientY - cy;
+    const dist = Math.hypot(dx, dy);
+    const clamped = Math.min(dist, maxRadius);
+    const nx = dist > 0 ? dx / dist : 0;
+    const ny = dist > 0 ? dy / dist : 0;
+
+    joystickStick.style.left = "50%";
+    joystickStick.style.top = "50%";
+    joystickStick.style.transform = `translate(${nx * clamped}px, ${
+      ny * clamped
+    }px)`;
+
+    keys.ArrowLeft = nx < -deadZone;
+    keys.ArrowRight = nx > deadZone;
+    keys.ArrowUp = ny < -deadZone;
+    keys.ArrowDown = ny > deadZone;
+
+    sendMoveInput();
+  };
+
+  const resetStick = () => {
+    joystickStick.style.left = "50%";
+    joystickStick.style.top = "50%";
+    joystickStick.style.transform = "translate(-50%, -50%)";
+    keys.ArrowLeft = keys.ArrowRight = keys.ArrowUp = keys.ArrowDown = false;
+    sendMoveInput();
+  };
+
+  joystickBase.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    joystickActive = true;
+    joystickPointerId = e.pointerId;
+    joystickBase.setPointerCapture(e.pointerId);
+    updateFromEvent(e);
+  });
+
+  joystickBase.addEventListener("pointermove", (e) => {
+    if (!joystickActive || e.pointerId !== joystickPointerId) return;
+    e.preventDefault();
+    updateFromEvent(e);
+  });
+
+  const end = (e) => {
+    if (!joystickActive || e.pointerId !== joystickPointerId) return;
+    e.preventDefault();
+    joystickActive = false;
+    joystickPointerId = null;
+    resetStick();
+    joystickBase.releasePointerCapture(e.pointerId);
+  };
+
+  joystickBase.addEventListener("pointerup", end);
+  joystickBase.addEventListener("pointercancel", end);
+}
+
+// 모바일에서 캔버스/조이스틱 쪽만 스크롤 막기
 ["touchstart", "touchmove"].forEach((evtName) => {
   document.addEventListener(
     evtName,
     (e) => {
       if (
         e.target.closest("#gameCanvas") ||
-        e.target.closest("#mobileControls")
+        e.target.closest("#mobileControls") ||
+        e.target.closest("#joystickBase")
       ) {
         e.preventDefault();
       }
