@@ -1,4 +1,177 @@
+// ---------------- 익명 유저/닉네임 ----------------
+
+function getOrCreateUserId() {
+  const KEY = "spacezUserId";
+  let id = localStorage.getItem(KEY);
+  if (!id) {
+    const random = Math.random().toString(36).slice(2);
+    const time = Date.now().toString(36);
+    id = "spacez_" + time + "_" + random;
+    localStorage.setItem(KEY, id);
+  }
+  return id;
+}
+
+const userId = getOrCreateUserId();
+let nickname = localStorage.getItem("spacezNickname") || "";
+
+// 화면 제어
+const screens = {
+  nickname: document.getElementById("screen-nickname"),
+  home: document.getElementById("screen-home"),
+  ranking: document.getElementById("screen-ranking"),
+  skins: document.getElementById("screen-skins"),
+  game: document.getElementById("screen-game")
+};
+
+function showScreen(name) {
+  Object.entries(screens).forEach(([key, el]) => {
+    if (key === name) el.classList.remove("hidden");
+    else el.classList.add("hidden");
+  });
+}
+
+// 초기 화면 결정
+if (nickname) {
+  showScreen("home");
+} else {
+  showScreen("nickname");
+}
+
+// ---------------- 소켓 연결 ----------------
+
 const socket = io();
+
+socket.emit("identify", { userId, nickname });
+
+socket.on("connect", () => {
+  // 재연결 시에도 identify
+  socket.emit("identify", { userId, nickname });
+});
+
+// 최신 프로필
+let latestProfile = null;
+
+socket.on("profile", (p) => {
+  latestProfile = p;
+
+  const homeNicknameEl = document.getElementById("homeNickname");
+  const homeScoreEl = document.getElementById("homeScore");
+  const skinsScoreEl = document.getElementById("skinsScore");
+  const rankScoreEl = document.getElementById("rankScore");
+
+  if (homeNicknameEl) homeNicknameEl.textContent = p.nickname;
+  if (homeScoreEl) homeScoreEl.textContent = p.score;
+  if (skinsScoreEl) skinsScoreEl.textContent = p.score;
+  if (rankScoreEl) rankScoreEl.textContent = p.score;
+
+  renderSkinList();
+});
+
+// 닉네임 입력 화면
+document.getElementById("nicknameConfirmBtn").addEventListener("click", () => {
+  const input = document.getElementById("nicknameInput");
+  const value = input.value.trim();
+  if (!value) return;
+  nickname = value;
+  localStorage.setItem("spacezNickname", nickname);
+  socket.emit("identify", { userId, nickname });
+  showScreen("home");
+});
+
+// 홈 화면 버튼
+document.getElementById("btnPlay").addEventListener("click", () => {
+  showScreen("game");
+  socket.emit("find_match");
+});
+
+document.getElementById("btnSkins").addEventListener("click", () => {
+  showScreen("skins");
+});
+
+document.getElementById("btnRanking").addEventListener("click", () => {
+  showScreen("ranking");
+  socket.emit("get_leaderboard", (list) => {
+    renderLeaderboard(list);
+  });
+});
+
+// 랭킹 화면
+document.getElementById("btnRankingBack").addEventListener("click", () => {
+  showScreen("home");
+});
+
+// 스킨 화면
+document.getElementById("btnSkinsBack").addEventListener("click", () => {
+  showScreen("home");
+});
+
+// 게임 화면 → 홈
+document.getElementById("btnGameBack").addEventListener("click", () => {
+  showScreen("home");
+});
+
+// 랭킹 렌더링
+function renderLeaderboard(list) {
+  const ul = document.getElementById("rankingList");
+  ul.innerHTML = "";
+  list.forEach((p, idx) => {
+    const li = document.createElement("li");
+    li.textContent = `${idx + 1}. ${p.nickname} - ${p.score}`;
+    ul.appendChild(li);
+  });
+}
+
+// ---------------- 스킨 선택 ----------------
+
+const SKIN_DATA = [
+  { id: 0, name: "기본", requiredScore: 0, desc: "기본 전투기" },
+  { id: 1, name: "와이드", requiredScore: 200, desc: "넓은 날개, 황금탄" },
+  { id: 2, name: "다트", requiredScore: 400, desc: "날렵한 삼각형, 초록탄" },
+  { id: 3, name: "레이저", requiredScore: 700, desc: "레이저 탄환" }
+];
+
+function renderSkinList() {
+  if (!latestProfile) return;
+  const unlocked = new Set(latestProfile.unlockedSkins || []);
+  const container = document.getElementById("skinList");
+  container.innerHTML = "";
+
+  SKIN_DATA.forEach((skin) => {
+    const div = document.createElement("div");
+    div.className = "skinCard";
+
+    const locked = !unlocked.has(skin.id);
+
+    const btnLabel = locked
+      ? `잠김`
+      : latestProfile.preferredSkin === skin.id
+      ? "선택됨"
+      : "선택";
+
+    div.innerHTML = `
+      <div>
+        <div class="skinName">${skin.name}</div>
+        <div class="skinReq">필요 점수: ${skin.requiredScore}점</div>
+        <div style="font-size:12px;color:#b9c2ff;">${skin.desc}</div>
+      </div>
+      <button class="skinSelectBtn" data-id="${skin.id}" ${
+      locked ? "disabled" : ""
+    }>${btnLabel}</button>
+    `;
+
+    container.appendChild(div);
+  });
+
+  container.querySelectorAll(".skinSelectBtn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = Number(btn.dataset.id);
+      socket.emit("set_skin", { skinId: id });
+    });
+  });
+}
+
+// ------------------- 게임 부분 -------------------
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -11,13 +184,10 @@ const enemyHeartsEl = document.getElementById("enemyHearts");
 const ammoFillEl = document.getElementById("ammoFill");
 const restartBtn = document.getElementById("restartBtn");
 const quickMatchBtn = document.getElementById("quickMatchBtn");
-const skinButtons = Array.from(document.querySelectorAll(".skinBtn"));
 
 let mySocketId = null;
-let myRole = null; // "bottom" or "top"
+let myRole = null;
 let currentState = null;
-let lastStateTime = 0;
-let localSkinId = 0;
 
 let keys = {
   ArrowUp: false,
@@ -35,36 +205,12 @@ let restartStatus = {
   other: false
 };
 
-// 스킨 버튼 UI 업데이트
-function setActiveSkinButton(id) {
-  skinButtons.forEach((btn) => {
-    btn.classList.toggle("active", Number(btn.dataset.skin) === id);
-  });
-}
-
-// 스킨 선택 클릭
-skinButtons.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const skinId = Number(btn.dataset.skin);
-    localSkinId = skinId;
-    setActiveSkinButton(skinId);
-    socket.emit("set_skin", { skinId });
-  });
-});
-
-// 빠른 재매칭: 새로고침으로 새 상대 찾기
-quickMatchBtn.addEventListener("click", () => {
-  window.location.reload();
-});
-
-// 매칭 요청
-socket.emit("find_match");
-
 socket.on("connect", () => {
   mySocketId = socket.id;
 });
 
 socket.on("waiting", () => {
+  if (screens.game.classList.contains("hidden")) return;
   matchStatusEl.textContent = "상대 플레이어를 기다리는 중입니다...";
   showOverlay("상대 플레이어를 기다리는 중입니다...");
 });
@@ -80,7 +226,6 @@ socket.on("match_found", (data) => {
 
 socket.on("state", (state) => {
   currentState = state;
-  lastStateTime = performance.now();
   updateUI();
 });
 
@@ -119,7 +264,7 @@ socket.on("restart", () => {
 
 socket.on("opponent_left", () => {
   showOverlay(
-    "상대가 게임을 떠났습니다.\n페이지를 새로고침하여 다시 매칭을 시작하세요."
+    "상대가 게임을 떠났습니다.\n페이지를 새로고침하거나 새 상대 찾기를 눌러주세요."
   );
   matchStatusEl.textContent = "상대가 떠났습니다.";
   restartBtn.disabled = true;
@@ -185,12 +330,18 @@ restartBtn.addEventListener("click", () => {
   restartBtn.disabled = true;
 });
 
-// ---------- 렌더링 루프 ----------
+// 새 상대 찾기: 새로고침
+quickMatchBtn.addEventListener("click", () => {
+  window.location.reload();
+});
+
+// ---------------- 렌더링 ----------------
 
 function gameLoop() {
   requestAnimationFrame(gameLoop);
   draw();
 }
+gameLoop();
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -211,7 +362,7 @@ function draw() {
   }
 
   if (!currentState) {
-    drawCenteredText("매칭 대기 중...", canvas.width / 2, canvas.height / 2);
+    drawCenteredText("게임을 시작하면 전장이 표시됩니다.", canvas.width / 2, canvas.height / 2);
     return;
   }
 
@@ -232,11 +383,8 @@ function draw() {
   }
 
   // 총알
-  ctx.fillStyle = "#ffdf5e";
   currentState.bullets.forEach((b) => {
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-    ctx.fill();
+    drawBullet(b);
   });
 
   // 전투기
@@ -245,11 +393,32 @@ function draw() {
   });
 }
 
-// 스킨별 전투기 그리기
+function drawBullet(b) {
+  let color;
+  switch (b.skinId) {
+    case 1:
+      color = "#ffd24d"; // 와이드: 노란 탄
+      break;
+    case 2:
+      color = "#7bffb2"; // 다트: 초록 탄
+      break;
+    case 3:
+      color = "#f279ff"; // 레이저형: 보라 탄
+      break;
+    default:
+      color = "#ffdf5e"; // 기본
+  }
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawFighter(p) {
   const isMe = p.socketId === mySocketId;
 
-  // 색은 나/상대 기준으로 구분
   const bodyColor = isMe ? "#4be1ff" : "#ff5e7a";
   const accentColor = isMe ? "#c4f4ff" : "#ffd2dd";
 
@@ -273,17 +442,18 @@ function drawFighter(p) {
 
   const skinId = p.skinId ?? 0;
 
-  // 스킨별 기체 형태
   switch (skinId) {
-    case 1: // 와이드
+    case 1:
       drawWideShip(bodyColor, accentColor);
       break;
-    case 2: // 다트
+    case 2:
       drawDartShip(bodyColor, accentColor);
       break;
-    default: // 기본
-      drawDefaultShip(bodyColor, accentColor);
+    case 3:
+      drawLaserShip(bodyColor, accentColor);
       break;
+    default:
+      drawDefaultShip(bodyColor, accentColor);
   }
 
   ctx.restore();
@@ -291,7 +461,6 @@ function drawFighter(p) {
 
 // 기본 스킨
 function drawDefaultShip(bodyColor, accentColor) {
-  // 몸체
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
   ctx.moveTo(0, -22);
@@ -300,17 +469,14 @@ function drawDefaultShip(bodyColor, accentColor) {
   ctx.closePath();
   ctx.fill();
 
-  // 조종석
   ctx.fillStyle = accentColor;
   ctx.beginPath();
   ctx.ellipse(0, -6, 7, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // 날개
   ctx.fillStyle = bodyColor;
   ctx.fillRect(-26, 4, 52, 6);
 
-  // 엔진 화염
   ctx.fillStyle = "rgba(255, 209, 138, 0.85)";
   ctx.beginPath();
   ctx.moveTo(-10, 16);
@@ -320,7 +486,7 @@ function drawDefaultShip(bodyColor, accentColor) {
   ctx.fill();
 }
 
-// 와이드 스킨
+// 와이드
 function drawWideShip(bodyColor, accentColor) {
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
@@ -345,7 +511,7 @@ function drawWideShip(bodyColor, accentColor) {
   ctx.fill();
 }
 
-// 다트 스킨
+// 다트
 function drawDartShip(bodyColor, accentColor) {
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
@@ -373,7 +539,28 @@ function drawDartShip(bodyColor, accentColor) {
   ctx.fill();
 }
 
-// 아이템 하트: 체력 하트와 동일 구조/각도
+// 레이저형
+function drawLaserShip(bodyColor, accentColor) {
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -24);
+  ctx.lineTo(10, 0);
+  ctx.lineTo(6, 20);
+  ctx.lineTo(-6, 20);
+  ctx.lineTo(-10, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -6, 5, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.fillRect(-3, 20, 6, 10);
+}
+
+// 아이템 하트 (체력 하트와 동일 구조)
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
@@ -406,7 +593,6 @@ function drawShieldItem(x, y) {
   ctx.restore();
 }
 
-// 탄약 아이템
 function drawAmmoItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
@@ -453,7 +639,8 @@ function drawExplosion(ex) {
 
 function drawCenteredText(text, x, y) {
   ctx.fillStyle = "#f5f5f5";
-  ctx.font = "20px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
+  ctx.font =
+    "20px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(text, x, y);
@@ -465,19 +652,17 @@ function updateUI() {
   const me = currentState.players.find((p) => p.socketId === mySocketId);
   const enemy = currentState.players.find((p) => p.socketId !== mySocketId);
 
-  if (me && typeof me.skinId === "number") {
-    localSkinId = me.skinId;
-    setActiveSkinButton(localSkinId);
-  }
-
   renderHearts(myHeartsEl, me ? me.hp : 0);
   renderHearts(enemyHeartsEl, enemy ? enemy.hp : 0);
 
   if (me) {
     const ratio = Math.max(0, Math.min(1, me.ammo / 100));
     ammoFillEl.style.width = (ratio * 100).toFixed(0) + "%";
-  } else {
-    ammoFillEl.style.width = "0%";
+
+    const rankScoreEl = document.getElementById("rankScore");
+    if (rankScoreEl && typeof me.score === "number") {
+      rankScoreEl.textContent = me.score;
+    }
   }
 }
 
@@ -498,5 +683,3 @@ function showOverlay(text) {
 function hideOverlay() {
   overlayEl.classList.add("hidden");
 }
-
-gameLoop();
