@@ -60,6 +60,7 @@ body {
   min-height: 24px;
 }
 
+/* 체력 하트 모양 */
 .heart {
   display: inline-block;
   width: 18px;
@@ -80,13 +81,14 @@ body {
   border-radius: 50%;
 }
 
+/* 좌우 간격 넓힌 버전 */
 .heart::before {
   top: -9px;
-  left: 0;
+  left: -2px;  /* 왼쪽으로 살짝 이동 */
 }
 
 .heart::after {
-  left: 9px;
+  left: 11px;  /* 오른쪽으로 더 이동 */
   top: 0;
 }
 
@@ -135,8 +137,7 @@ body {
   background: radial-gradient(circle at top, #1a2454 0, #050814 55%);
 }
 
-/* ★ 여기서부터 오버레이 클릭 막힘 해결 부분 */
-
+/* 오버레이: 클릭은 뒤로 통과시키고, 텍스트 박스만 활성 */
 #overlay {
   position: fixed;
   inset: 0;
@@ -145,7 +146,7 @@ body {
   justify-content: center;
   background: rgba(5, 8, 20, 0.75);
   z-index: 10;
-  pointer-events: none;      /* 전체 오버레이는 클릭을 통과시킴 */
+  pointer-events: none;
 }
 
 #overlay.hidden {
@@ -161,5 +162,5 @@ body {
   font-size: 18px;
   text-align: center;
   white-space: pre-line;
-  pointer-events: auto;      /* 텍스트 박스만 마우스 이벤트 가능(선택 등) */
+  pointer-events: auto;
 }
