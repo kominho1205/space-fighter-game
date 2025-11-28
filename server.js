@@ -282,29 +282,60 @@ function updateGame(game, dt) {
     if (p._shootCooldown > 0) p._shootCooldown -= dt;
   });
 
-  // AI 동작
-  if (game.ai) {
-    const ai = game.players.find((p) => !p.socket);
-    const human = game.players.find((p) => p.socket);
-    if (ai && human) {
-      const speed = 180;
-      const dx = human.x - ai.x;
-      if (Math.abs(dx) > 8) {
-        ai.moveInput.left = dx < 0;
-        ai.moveInput.right = dx > 0;
-      } else {
-        ai.moveInput.left = ai.moveInput.right = false;
-      }
-      ai.moveInput.up = false;
-      ai.moveInput.down = false;
+  /* ----------------- 개선된 AI ----------------- */
+if (game.ai) {
+  const ai = game.players.find(p => !p.socket);
+  const human = game.players.find(p => p.socket);
 
-      if (ai._shootCooldown <= 0 && ai.ammo >= 25) {
-        spawnBullet(game, ai);
-        ai.ammo -= 25;
-        ai._shootCooldown = 0.8 + Math.random() * 0.8;
+  if (ai && human) {
+
+    // -------------------
+    // 1) 목표 선택: 플레이어 vs 아이템
+    // -------------------
+    let targetX = human.x;
+    let targetY = human.y;
+
+    // 가까운 아이템 먹기
+    if (game.items.length > 0) {
+      let nearest = null;
+      let best = 99999;
+      for (const it of game.items) {
+        const d = Math.hypot(ai.x - it.x, ai.y - it.y);
+        if (d < best) {
+          best = d;
+          nearest = it;
+        }
+      }
+      if (nearest && best < 260) {  // 일정 거리 안의 아이템만 먹으러 감
+        targetX = nearest.x;
+        targetY = nearest.y;
       }
     }
+
+    // -------------------
+    // 2) 상하좌우 이동
+    // -------------------
+    const dx = targetX - ai.x;
+    const dy = targetY - ai.y;
+
+    ai.moveInput.left = dx < -8;
+    ai.moveInput.right = dx > 8;
+    ai.moveInput.up = dy < -8;
+    ai.moveInput.down = dy > 8;
+
+    // -------------------
+    // 3) 사격: 수직 정렬 + 랜덤 요소
+    // -------------------
+    const aligned = Math.abs(dx) < 60;
+
+    if (aligned && ai._shootCooldown <= 0 && ai.ammo >= 25) {
+      spawnBullet(game, ai);
+      ai.ammo -= 25;
+      ai._shootCooldown = 0.5 + Math.random() * 0.8;
+    }
   }
+}
+
 
   // 아이템 스폰
   game.itemSpawnTimer -= dt;
