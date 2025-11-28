@@ -67,13 +67,10 @@
 
       <!-- 모바일 전용 조작 UI: 캔버스 바로 아래 -->
       <div id="mobileControls" class="mobile-only">
-        <div class="mobile-move">
-          <button id="btnUp">↑</button>
-          <div class="middle-row">
-            <button id="btnLeft">←</button>
-            <button id="btnRight">→</button>
+        <div id="joystickWrapper">
+          <div id="joystickBase">
+            <div id="joystickStick"></div>
           </div>
-          <button id="btnDown">↓</button>
         </div>
         <div class="mobile-fire">
           <button id="btnFire">FIRE</button>
@@ -96,7 +93,7 @@
           <div>
             <strong>설명</strong><br />
             탄약은 게이지 형식으로 자동 충전됩니다.<br />
-            하트 아이템: 목숨 +1 (최대 3개)<br />
+            하트 아이템: 목숨 +1 (최대 3개 또는 4개)<br />
             방어막 아이템: 2초간 무적<br />
             탄약 아이템: 탄약 게이지를 즉시 가득 채움<br />
           </div>
