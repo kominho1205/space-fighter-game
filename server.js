@@ -180,9 +180,9 @@ function finishGame(game, winnerSocketId) {
     if (!u) return;
 
     if (p.socketId === winnerSocketId) {
-      u.score += 10;
+      u.score += 25;
     } else {
-      u.score = Math.max(0, u.score - 5);
+      u.score = Math.max(0, u.score - 20);
     }
   });
 
