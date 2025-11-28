@@ -1,0 +1,13 @@
+{
+  "name": "space-fighter-game",
+  "version": "1.0.0",
+  "description": "Simple 2D space fighter web game with real-time online matchmaking using Socket.IO",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "socket.io": "^4.8.0"
+  }
+}
