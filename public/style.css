@@ -7,12 +7,150 @@
 body {
   background: #050814;
   color: #f1f1f1;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    sans-serif;
+  height: 100vh;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+/* 화면 공통 */
+
+.screen {
+  width: 100%;
+  height: 100%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.screen:not(.hidden) {
   display: flex;
-  flex-direction: row;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* 패널 공통 */
+
+.panel {
+  width: 360px;
+  padding: 20px 18px 18px;
+  background: rgba(10, 12, 30, 0.95);
+  border-radius: 12px;
+  border: 1px solid #283063;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel h1 {
+  font-size: 20px;
+  color: #8fd3ff;
+}
+
+.sub {
+  font-size: 13px;
+  color: #d0d5ff;
+}
+
+.panel input {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #374377;
+  background: #05081a;
+  color: #f1f1f1;
+  font-size: 14px;
+}
+
+.panel button {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: #11192f;
+  color: #c6d1ff;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.panel button.primary {
+  background: #2f7bff;
+  color: #fff;
+}
+
+.panel button:hover {
+  background: #18203b;
+}
+
+.homeRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+}
+
+.label {
+  color: #b8c1ff;
+}
+
+/* 랭킹 */
+
+#rankingList {
+  margin-top: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: 14px;
+  padding-left: 20px;
+}
+
+/* 스킨 카드 */
+
+#skinList {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.skinCard {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #10152f;
+  border: 1px solid #2b335f;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.skinName {
+  font-weight: 600;
+}
+
+.skinReq {
+  color: #9ea7ff;
+  font-size: 12px;
+}
+
+.skinCard button {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+/* 게임 화면 레이아웃 */
+
+#screen-game {
   justify-content: center;
   align-items: flex-start;
-  height: 100vh;
   padding: 16px;
   gap: 16px;
 }
@@ -49,41 +187,13 @@ body {
   font-size: 13px;
 }
 
-/* 스킨 선택 */
-#skinSelector {
-  margin-top: 4px;
+#rankInfo {
   font-size: 13px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.skinLabel {
   color: #b8c1ff;
 }
 
-.skinButtons {
-  display: flex;
-  gap: 6px;
-}
-
-.skinBtn {
-  flex: 1;
-  border-radius: 8px;
-  border: 1px solid #3a4aa5;
-  background: #121739;
-  color: #d5ddff;
-  font-size: 12px;
-  padding: 4px 0;
-  cursor: pointer;
-}
-
-.skinBtn.active {
-  background: #2f7bff;
-  color: #fff;
-}
-
 /* 체력 표시 */
+
 #heartsWrapper {
   display: flex;
   flex-direction: column;
@@ -107,12 +217,11 @@ body {
   min-height: 24px;
 }
 
-/* 체력 하트 */
 .heart {
   display: inline-block;
   width: 18px;
   height: 18px;
-  margin-right: 14px; /* 겹치지 않도록 넉넉히 */
+  margin-right: 14px;
   background: #ff4b69;
   position: relative;
   transform: rotate(-45deg);
@@ -139,6 +248,7 @@ body {
 }
 
 /* 탄약 게이지 */
+
 #ammoWrapper {
   margin-top: 4px;
   font-size: 13px;
@@ -160,15 +270,15 @@ body {
   transition: width 0.1s linear;
 }
 
-/* 버튼들 */
+/* 버튼 */
+
 #buttonsWrapper {
   display: flex;
   flex-direction: column;
   gap: 6px;
 }
 
-#restartBtn,
-#quickMatchBtn {
+#buttonsWrapper button {
   padding: 8px 10px;
   border-radius: 8px;
   border: none;
@@ -193,9 +303,17 @@ body {
   border: 1px solid #374377;
 }
 
-#quickMatchBtn:hover {
+#btnGameBack {
+  background: #171c32;
+  color: #e5e8ff;
+}
+
+#quickMatchBtn:hover,
+#btnGameBack:hover {
   background: #18203b;
 }
+
+/* 캔버스 */
 
 #gameCanvas {
   border-radius: 12px;
@@ -204,7 +322,8 @@ body {
   background: radial-gradient(circle at top, #1a2454 0, #050814 55%);
 }
 
-/* 오버레이: 텍스트만 표시 */
+/* 오버레이 (텍스트만) */
+
 #overlay {
   position: fixed;
   inset: 0;
@@ -223,7 +342,6 @@ body {
 #overlayText {
   background: transparent;
   border: none;
-  box-shadow: none;
   padding: 0;
   font-size: 20px;
   font-weight: 600;
