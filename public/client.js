@@ -115,9 +115,9 @@ document.getElementById("btnGameBack").addEventListener("click", () => {
 function renderLeaderboard(list) {
   const ul = document.getElementById("rankingList");
   ul.innerHTML = "";
-  list.forEach((p, idx) => {
+  list.forEach((p) => {
     const li = document.createElement("li");
-    li.textContent = `${idx + 1}. ${p.nickname} - ${p.score}`;
+    li.textContent = `${p.nickname} - ${p.score}`;
     ul.appendChild(li);
   });
 }
