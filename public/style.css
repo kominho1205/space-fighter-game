@@ -147,7 +147,7 @@ body {
 
 /* 게임 화면 레이아웃 */
 
-/* PC: 왼쪽 캔버스, 오른쪽 UI */
+/* PC: 왼쪽 캔버스, 오른쪽 UI, 모바일 컨트롤 숨김 */
 #screen-game {
   justify-content: center;
   align-items: center;
@@ -350,7 +350,8 @@ body {
   display: none;
 }
 
-/* 모바일 레이아웃: GameBoy 스타일 (위: 화면, 아래: UI+버튼) */
+/* 모바일 레이아웃:
+   [캔버스] -> [모바일 조작 버튼] -> [UI 패널]  */
 @media (max-width: 768px) {
   #screen-game {
     flex-direction: column;
@@ -366,6 +367,13 @@ body {
     height: auto;
   }
 
+  #mobileControls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 12px;
+  }
+
   #ui {
     width: 100%;
     max-width: 480px;
@@ -375,14 +383,6 @@ body {
   /* 모바일에서는 설명/조작법 숨김 */
   #info {
     display: none;
-  }
-
-  .mobile-only {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin: 10px 0 0;
-    gap: 12px;
   }
 
   #mobileControls button {
