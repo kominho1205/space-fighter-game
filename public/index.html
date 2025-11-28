@@ -28,7 +28,17 @@
       </div>
     </div>
 
-    <!-- ★ 체력 라벨 + 하트 -->
+    <!-- 스킨 선택 -->
+    <div id="skinSelector">
+      <span class="skinLabel">내 스킨</span>
+      <div class="skinButtons">
+        <button class="skinBtn" data-skin="0">기본</button>
+        <button class="skinBtn" data-skin="1">와이드</button>
+        <button class="skinBtn" data-skin="2">다트</button>
+      </div>
+    </div>
+
+    <!-- 체력 표시 -->
     <div id="heartsWrapper">
       <div class="heartsRow">
         <div class="heartsLabel">내 체력</div>
@@ -40,6 +50,7 @@
       </div>
     </div>
 
+    <!-- 탄약 게이지 -->
     <div id="ammoWrapper">
       <label>내 탄약 게이지</label>
       <div class="ammoBar">
@@ -47,7 +58,10 @@
       </div>
     </div>
 
-    <button id="restartBtn" disabled>다시 시작 (같은 상대)</button>
+    <div id="buttonsWrapper">
+      <button id="restartBtn" disabled>다시 시작 (같은 상대)</button>
+      <button id="quickMatchBtn">새 상대 찾기</button>
+    </div>
   </div>
 
   <canvas id="gameCanvas" width="800" height="600"></canvas>
