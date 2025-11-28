@@ -147,7 +147,6 @@ body {
 
 /* 게임 화면 레이아웃 */
 
-/* PC: 왼쪽 캔버스, 오른쪽 UI, 모바일 컨트롤 숨김 */
 #screen-game {
   justify-content: center;
   align-items: center;
@@ -351,7 +350,8 @@ body {
 }
 
 /* 모바일 레이아웃:
-   [캔버스] -> [모바일 조작 버튼] -> [UI 패널]  */
+   [캔버스] -> [모바일 조작 버튼(조이스틱)] -> [UI 패널] */
+
 @media (max-width: 768px) {
   #screen-game {
     flex-direction: column;
@@ -371,7 +371,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
   }
 
   #ui {
@@ -385,33 +385,34 @@ body {
     display: none;
   }
 
-  #mobileControls button {
-    min-width: 50px;
-    min-height: 50px;
-    border-radius: 999px;
-    border: none;
-    background: #1d2748;
-    color: #e5e8ff;
-    font-size: 20px;
-    font-weight: 700;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-  }
-
-  #mobileControls button:active {
-    background: #2f7bff;
-    color: #fff;
-  }
-
-  .mobile-move {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .mobile-move .middle-row {
+  /* 조이스틱 */
+  #joystickWrapper {
     display: flex;
     justify-content: center;
-    gap: 6px;
+    align-items: center;
+  }
+
+  #joystickBase {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    background: radial-gradient(circle, #202a4d 0, #090f26 70%);
+    border: 2px solid #3d4b80;
+    position: relative;
+    touch-action: none;
+  }
+
+  #joystickStick {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: #2f7bff;
+    border: 2px solid #a9c7ff;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px rgba(47, 123, 255, 0.8);
   }
 
   .mobile-fire {
@@ -420,6 +421,18 @@ body {
   }
 
   #btnFire {
-    padding: 0 18px;
+    min-width: 60px;
+    min-height: 60px;
+    border-radius: 999px;
+    border: none;
+    background: #e24b5a;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  #btnFire:active {
+    background: #ff6974;
   }
 }
