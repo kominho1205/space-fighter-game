@@ -11,7 +11,7 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const KEEPALIVE_URL = process.env.KEEPALIVE_URL || null;
 
-// 정적 서비스
+// 정적 파일
 app.use(express.static(path.join(__dirname, "public")));
 server.listen(PORT, () => console.log("Space Z server running:", PORT));
 
@@ -20,7 +20,6 @@ server.listen(PORT, () => console.log("Space Z server running:", PORT));
 -------------------------------------- */
 
 const ACCOUNTS_FILE = path.join(__dirname, "accounts.json");
-
 // nickname -> profile
 let accounts = new Map();
 
@@ -49,7 +48,7 @@ function getOrCreateAccount(nickname, password) {
   if (!u) {
     u = {
       nickname,
-      password, // 프로토타입: 평문 저장
+      password, // 프로토타입: 평문
       score: 0,
       unlockedSkins: [0],
       preferredSkin: 0
@@ -112,14 +111,11 @@ function makeNewGame(matchId, players, options) {
     itemSpawnTimer: 0,
     restartStatus: {},
 
-    // 추가
+    // 종료 연출용 상태
     ended: false,
     winnerSocketId: null,
     endTimer: 0
   };
-  ...
-}
-
 
   players.forEach((p) => {
     const isBottom = p.role === "bottom";
@@ -207,6 +203,9 @@ function createAIMatch(entry) {
 -------------------------------------- */
 
 function finishGame(game, winnerSocketId) {
+  // 이미 삭제된 게임이면 무시
+  if (!games.has(game.id)) return;
+
   game.players.forEach((p) => {
     const u = accounts.get(p.userId);
     if (!u) return;
@@ -274,13 +273,12 @@ setInterval(() => {
 }, TICK);
 
 /* --------------------------------------
-   updateGame (카운트다운 + AI)
+   updateGame (카운트다운 + AI + 종료 연출)
 -------------------------------------- */
 
 function updateGame(game, dt) {
   // 이미 끝난 게임이면 폭발만 돌리다가 일정 시간 후 마무리
   if (game.ended) {
-    // 폭발 에니메이션 계속 업데이트
     const ex2 = [];
     game.explosions.forEach((e) => {
       e.age += dt;
@@ -295,17 +293,12 @@ function updateGame(game, dt) {
     return;
   }
 
-  // ↓ 기존 코드 계속
+  // 카운트다운 동안은 움직임/탄/아이템 정지
   if (game.countdown > 0) {
     game.countdown -= dt;
     if (game.countdown < 0) game.countdown = 0;
     return;
   }
-
-  /* --- 플레이어 이동/상태 --- */
-  ...
-}
-
 
   /* --- 플레이어 이동/상태 --- */
   game.players.forEach((p) => {
@@ -381,7 +374,6 @@ function updateGame(game, dt) {
 
       if (aligned && ai._shootCooldown <= 0 && ai.ammo >= 25) {
         if (Math.random() < 0.6) {
-          // 60% 확률만 사격
           spawnBullet(game, ai);
           ai.ammo -= 25;
         }
@@ -417,10 +409,14 @@ function updateGame(game, dt) {
           p.hitInvTimer = 1.0;
           game.explosions.push({ x: b.x, y: b.y, age: 0 });
 
-          if (p.hp <= 0) {
+          if (p.hp <= 0 && !game.ended) {
             // 전투기 파괴 위치에서 추가 폭발
             game.explosions.push({ x: p.x, y: p.y, age: 0 });
-            finishGame(game, b.ownerId);
+
+            // 바로 끝내지 말고, 폭발 연출 후 종료
+            game.ended = true;
+            game.winnerSocketId = b.ownerId;
+            game.endTimer = 0.7; // 폭발 보여줄 시간
           }
         }
       }
@@ -430,7 +426,7 @@ function updateGame(game, dt) {
   });
   game.bullets = newBullets;
 
-  /* --- 폭발 --- */
+  /* --- 폭발 (게임 진행 중) --- */
   const ex2 = [];
   game.explosions.forEach((e) => {
     e.age += dt;
