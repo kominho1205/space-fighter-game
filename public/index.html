@@ -61,79 +61,72 @@
     </div>
 
     <!-- 5. 게임 플레이 화면 -->
-    <div id="screen-game" class="screen hidden">
-      <!-- 전투 화면(캔버스) -->
-      <canvas id="gameCanvas" width="800" height="600"></canvas>
+<div id="screen-game" class="screen hidden">
 
-      <!-- 모바일 전용 조작 UI: 캔버스 바로 아래 -->
-      <div id="mobileControls" class="mobile-only">
-        <div id="joystickWrapper">
-          <div id="joystickBase">
-            <div id="joystickStick"></div>
-          </div>
-        </div>
-        <div class="mobile-fire">
-          <button id="btnFire">FIRE</button>
-        </div>
-      </div>
-
-      <!-- 그 아래에 나머지 UI -->
-      <div id="ui">
-        <h1>Space Z</h1>
-        <div id="status">
-          <span id="matchStatus">매칭 대기 중...</span>
-        </div>
-
-        <!-- 하트 블록을 정보(#info)보다 위로 이동 -->
-        <div id="heartsWrapper">
-          <div class="heartsRow">
-            <div class="heartsLabel">내 체력</div>
-            <div id="myHearts" class="hearts"></div>
-          </div>
-          <div class="heartsRow">
-            <div class="heartsLabel">상대 체력</div>
-            <div id="enemyHearts" class="hearts"></div>
-          </div>
-        </div>
-
-        <div id="ammoWrapper">
-          <label>내 탄약 게이지</label>
-          <div class="ammoBar">
-            <div id="ammoFill" class="ammoFill"></div>
-          </div>
-        </div>
-
-        <div id="rankInfo">
-          RANK SCORE: <span id="rankScore">0</span>
-        </div>
-
-        <!-- PC용 설명(모바일에선 CSS로 숨김) -->
-        <div id="info">
-          <div>
-            <strong>조작법</strong><br />
-            방향키 ←↑↓→ : 이동<br />
-            스페이스 : 공격<br />
-          </div>
-          <div>
-            <strong>설명</strong><br />
-            탄약은 게이지 형식으로 자동 충전됩니다.<br />
-            하트 아이템: 목숨 +1 (최대 3개 또는 4개)<br />
-            방어막 아이템: 2초간 무적<br />
-            탄약 아이템: 탄약 게이지를 즉시 가득 채움<br />
-          </div>
-        </div>
-
-        <div id="buttonsWrapper">
-          <button id="restartBtn" disabled>다시 시작 (같은 상대)</button>
-          <button id="btnGameBack">홈으로</button>
-        </div>
-      </div>
-
-      <div id="overlay" class="hidden">
-        <div id="overlayText"></div>
-      </div>
+  <!-- 1) 체력 표시 (모바일 최상단) -->
+  <div id="mobileHeartsWrapper" class="mobile-only mobile-hearts">
+    <div class="heartsRow">
+      <div class="heartsLabel">내 체력</div>
+      <div id="mobileMyHearts" class="hearts"></div>
+    </div>
+    <div class="heartsRow">
+      <div class="heartsLabel">상대 체력</div>
+      <div id="mobileEnemyHearts" class="hearts"></div>
     </div>
   </div>
+
+  <!-- 2) 전투 화면 캔버스 -->
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+  <!-- 3) 탄약 게이지 (모바일 독립 영역) -->
+  <div id="mobileAmmoWrapper" class="mobile-only mobile-ammo">
+    <label>내 탄약 게이지</label>
+    <div class="ammoBar"><div id="mobileAmmoFill" class="ammoFill"></div></div>
+  </div>
+
+  <!-- 4) 조이스틱 + FIRE 버튼 -->
+  <div id="mobileControls" class="mobile-only mobile-controls">
+    <div id="joystickWrapper">
+      <div id="joystickBase"><div id="joystickStick"></div></div>
+    </div>
+    <div class="mobile-fire">
+      <button id="btnFire">FIRE</button>
+    </div>
+  </div>
+
+  <!-- PC/공통 UI → 모바일에서는 아래쪽으로 감 -->
+  <div id="ui">
+    <h1>Space Z</h1>
+    <div id="status"><span id="matchStatus">매칭 대기 중...</span></div>
+
+    <!-- PC 전용 체력 영역 (모바일에서는 CSS로 숨김) -->
+    <div id="heartsWrapper">
+      <div class="heartsRow"><div class="heartsLabel">내 체력</div><div id="myHearts" class="hearts"></div></div>
+      <div class="heartsRow"><div class="heartsLabel">상대 체력</div><div id="enemyHearts" class="hearts"></div></div>
+    </div>
+
+    <!-- PC용 탄약 -->
+    <div id="ammoWrapper">
+      <label>내 탄약 게이지</label>
+      <div class="ammoBar"><div id="ammoFill" class="ammoFill"></div></div>
+    </div>
+
+    <div id="rankInfo">RANK SCORE: <span id="rankScore">0</span></div>
+
+    <!-- PC에서만 설명 표시됨 -->
+    <div id="info">
+      <div><strong>조작법</strong><br>방향키 ←↑↓→<br>스페이스: 공격</div>
+      <div><strong>설명</strong><br>탄약 자동충전<br>하트: HP+1<br>방어막: 2초 무적<br>탄약: 즉시 풀충전</div>
+    </div>
+
+    <div id="buttonsWrapper">
+      <button id="restartBtn" disabled>다시 시작</button>
+      <button id="btnGameBack">홈으로</button>
+    </div>
+  </div>
+
+  <div id="overlay" class="hidden"><div id="overlayText"></div></div>
+</div>
 
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
