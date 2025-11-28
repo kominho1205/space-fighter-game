@@ -278,12 +278,34 @@ setInterval(() => {
 -------------------------------------- */
 
 function updateGame(game, dt) {
-  // 3초 카운트다운 동안은 위치/탄/아이템 업데이트 X
+  // 이미 끝난 게임이면 폭발만 돌리다가 일정 시간 후 마무리
+  if (game.ended) {
+    // 폭발 에니메이션 계속 업데이트
+    const ex2 = [];
+    game.explosions.forEach((e) => {
+      e.age += dt;
+      if (e.age < 0.6) ex2.push(e);
+    });
+    game.explosions = ex2;
+
+    game.endTimer -= dt;
+    if (game.endTimer <= 0 && game.winnerSocketId) {
+      finishGame(game, game.winnerSocketId);
+    }
+    return;
+  }
+
+  // ↓ 기존 코드 계속
   if (game.countdown > 0) {
     game.countdown -= dt;
     if (game.countdown < 0) game.countdown = 0;
     return;
   }
+
+  /* --- 플레이어 이동/상태 --- */
+  ...
+}
+
 
   /* --- 플레이어 이동/상태 --- */
   game.players.forEach((p) => {
