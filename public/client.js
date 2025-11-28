@@ -31,7 +31,7 @@ function showScreen(name) {
   });
 }
 
-// 초기 화면 결정
+// 초기 화면
 if (nickname) {
   showScreen("home");
 } else {
@@ -45,10 +45,9 @@ const socket = io();
 socket.emit("identify", { userId, nickname });
 
 socket.on("connect", () => {
-  socket.emit("identify", { userId, nickname }); // 재연결 시
+  socket.emit("identify", { userId, nickname });
 });
 
-// 최신 프로필
 let latestProfile = null;
 
 socket.on("profile", (p) => {
@@ -67,7 +66,7 @@ socket.on("profile", (p) => {
   renderSkinList();
 });
 
-// 닉네임 입력 화면
+// 닉네임 입력
 document.getElementById("nicknameConfirmBtn").addEventListener("click", () => {
   const input = document.getElementById("nicknameInput");
   const value = input.value.trim();
@@ -78,9 +77,8 @@ document.getElementById("nicknameConfirmBtn").addEventListener("click", () => {
   showScreen("home");
 });
 
-// 홈 화면 버튼
+// 홈
 document.getElementById("btnPlay").addEventListener("click", () => {
-  // 이전 판 상태 초기화
   currentState = null;
   myRole = null;
   restartStatus = { me: false, other: false };
@@ -103,22 +101,19 @@ document.getElementById("btnRanking").addEventListener("click", () => {
   });
 });
 
-// 랭킹 화면
 document.getElementById("btnRankingBack").addEventListener("click", () => {
   showScreen("home");
 });
 
-// 스킨 화면
 document.getElementById("btnSkinsBack").addEventListener("click", () => {
   showScreen("home");
 });
 
-// 게임 화면 → 홈
 document.getElementById("btnGameBack").addEventListener("click", () => {
   showScreen("home");
 });
 
-// 랭킹 렌더링
+// 랭킹
 function renderLeaderboard(list) {
   const ul = document.getElementById("rankingList");
   ul.innerHTML = "";
@@ -129,7 +124,7 @@ function renderLeaderboard(list) {
   });
 }
 
-// ---------------- 스킨 선택 ----------------
+// ---------------- 스킨 ----------------
 
 const SKIN_DATA = [
   { id: 0, name: "기본", requiredScore: 0, desc: "기본 전투기 (HP 3, 보통 속도)" },
@@ -178,7 +173,7 @@ function renderSkinList() {
   });
 }
 
-// ------------------- 게임 부분 -------------------
+// ---------------- 게임 ----------------
 
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
@@ -270,19 +265,19 @@ socket.on("restart", () => {
   hideOverlay();
 });
 
+// ★ 상대가 게임에서 나갔을 때
 socket.on("opponent_left", () => {
-  // 상대가 나갔을 때: 이번 판 상태 정리
   showOverlay(
-    "상대가 게임을 떠났습니다.\n홈으로 돌아간 뒤 다시 게임을 시작해 주세요."
+    "상대가 게임을 떠났습니다.\n상대는 패배 처리되고,\n나에게는 승리로 기록됩니다.\n\n홈으로 돌아가 새 게임을 시작하세요."
   );
-  matchStatusEl.textContent = "상대가 떠났습니다.";
+  matchStatusEl.textContent = "상대가 떠났습니다. (내 승리)";
   restartBtn.disabled = true;
   currentState = null;
   myRole = null;
   restartStatus = { me: false, other: false };
 });
 
-// 입력 처리 (키보드)
+// 입력(키보드)
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space") e.preventDefault();
 
@@ -342,7 +337,7 @@ restartBtn.addEventListener("click", () => {
   restartBtn.disabled = true;
 });
 
-// -------- 모바일/마우스 버튼을 키 입력으로 매핑 --------
+// 모바일/마우스 버튼 -> 키 매핑
 function registerButtonHold(buttonId, keyName) {
   const el = document.getElementById(buttonId);
   if (!el) return;
@@ -365,7 +360,6 @@ function registerButtonHold(buttonId, keyName) {
     }
   };
 
-  // 터치 + 마우스 둘 다 지원
   el.addEventListener("touchstart", press);
   el.addEventListener("touchend", release);
   el.addEventListener("touchcancel", release);
@@ -374,14 +368,13 @@ function registerButtonHold(buttonId, keyName) {
   el.addEventListener("mouseleave", release);
 }
 
-// 모바일 컨트롤 버튼들 등록
 registerButtonHold("btnUp", "ArrowUp");
 registerButtonHold("btnDown", "ArrowDown");
 registerButtonHold("btnLeft", "ArrowLeft");
 registerButtonHold("btnRight", "ArrowRight");
 registerButtonHold("btnFire", "Space");
 
-// 모바일에서 스크롤 방지 (캔버스/모바일 조작 버튼에서만)
+// 모바일에서 캔버스/조작 버튼만 스크롤 막기
 ["touchstart", "touchmove"].forEach((evtName) => {
   document.addEventListener(
     evtName,
@@ -412,14 +405,12 @@ function isOverlayVisible() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // 배경
   const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
   g.addColorStop(0, "#0e1635");
   g.addColorStop(1, "#050814");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // 별
   ctx.fillStyle = "rgba(255,255,255,0.2)";
   for (let i = 0; i < 40; i++) {
     const x = (i * 123) % canvas.width;
@@ -428,7 +419,6 @@ function draw() {
   }
 
   if (!currentState) {
-    // 오버레이가 떠 있을 때는 안내 텍스트를 캔버스에 따로 그리지 않음 → 텍스트 겹침 방지
     if (!isOverlayVisible()) {
       drawCenteredText(
         "게임을 시작하면 전장이 표시됩니다.\n상대 플레이어를 기다리는 중입니다...",
@@ -439,7 +429,6 @@ function draw() {
     return;
   }
 
-  // 아이템
   currentState.items.forEach((item) => {
     if (item.type === "heart") {
       drawHeartItem(item.x, item.y);
@@ -450,17 +439,14 @@ function draw() {
     }
   });
 
-  // 폭발 이펙트
   if (currentState.explosions) {
     currentState.explosions.forEach((ex) => drawExplosion(ex));
   }
 
-  // 총알
   currentState.bullets.forEach((b) => {
     drawBullet(b);
   });
 
-  // 전투기
   currentState.players.forEach((p) => {
     drawFighter(p);
   });
@@ -471,19 +457,19 @@ function drawBullet(b) {
   ctx.translate(b.x, b.y);
 
   switch (b.skinId) {
-    case 1: // 와이드
+    case 1:
       ctx.fillStyle = "#ffd24d";
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fill();
       break;
-    case 2: // 다트
+    case 2:
       ctx.fillStyle = "#7bffb2";
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fill();
       break;
-    case 3: // 레이저
+    case 3:
       ctx.fillStyle = "#f279ff";
       ctx.beginPath();
       if (ctx.roundRect) {
@@ -513,7 +499,6 @@ function drawFighter(p) {
   ctx.save();
   ctx.translate(p.x, p.y);
 
-  // 피격 무적일 때 깜빡임
   if (isHitInv) {
     const t = performance.now() * 0.02;
     const alpha = 0.3 + (Math.sin(t) + 1) * 0.35;
@@ -540,7 +525,6 @@ function drawFighter(p) {
       drawDefaultShip(bodyColor, accentColor);
   }
 
-  // 방어막
   if (p.shieldActive) {
     ctx.beginPath();
     ctx.arc(0, 0, 28, 0, Math.PI * 2);
@@ -554,7 +538,6 @@ function drawFighter(p) {
   ctx.restore();
 }
 
-// 기본 스킨
 function drawDefaultShip(bodyColor, accentColor) {
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
@@ -581,7 +564,6 @@ function drawDefaultShip(bodyColor, accentColor) {
   ctx.fill();
 }
 
-// 와이드
 function drawWideShip(bodyColor, accentColor) {
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
@@ -606,7 +588,6 @@ function drawWideShip(bodyColor, accentColor) {
   ctx.fill();
 }
 
-// 다트
 function drawDartShip(bodyColor, accentColor) {
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
@@ -634,7 +615,6 @@ function drawDartShip(bodyColor, accentColor) {
   ctx.fill();
 }
 
-// 레이저형
 function drawLaserShip(bodyColor, accentColor) {
   ctx.fillStyle = bodyColor;
   ctx.beginPath();
@@ -655,7 +635,6 @@ function drawLaserShip(bodyColor, accentColor) {
   ctx.fillRect(-3, 20, 6, 10);
 }
 
-// 아이템 하트
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
@@ -709,7 +688,6 @@ function drawAmmoItem(x, y) {
   ctx.restore();
 }
 
-// 폭발 이펙트
 function drawExplosion(ex) {
   const age = Math.min(ex.age, 1);
   const alpha = 1 - age;
@@ -741,7 +719,6 @@ function drawCenteredText(text, x, y) {
   ctx.fillText(text, x, y);
 }
 
-// UI 업데이트
 function updateUI() {
   if (!currentState) {
     myHeartsEl.innerHTML = "";
