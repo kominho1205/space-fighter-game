@@ -8,25 +8,21 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
-// Serve static files
+// 정적 파일 제공
 app.use(express.static("public"));
 
-/**
- * Matchmaking & room management
- */
-let waitingPlayer = null; // socket id of waiting player, if any
-const rooms = new Map(); // roomId -> roomState
+let waitingPlayer = null; // 대기 중인 플레이어 socket id
+const rooms = new Map();  // roomId -> roomState
 
 let roomCounter = 1;
-
 function createRoomId() {
   return "room_" + roomCounter++;
 }
 
-// Game constants
+// 게임 상수
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 600;
-const PLAYER_SPEED = 260; // pixels per second
+const PLAYER_SPEED = 260;
 const BULLET_SPEED = 420;
 const PLAYER_WIDTH = 40;
 const PLAYER_HEIGHT = 40;
@@ -37,39 +33,20 @@ const AMMO_COST_PER_SHOT = 35;
 const SHIELD_DURATION_MS = 2000;
 const ITEM_SPAWN_INTERVAL_MS = 7000;
 const ITEM_RADIUS = 15;
-const PLAYER_RADIUS = 22; // for collision approx
+const PLAYER_RADIUS = 22;
 
-// Room state structure:
-// {
-//   id,
-//   sockets: [socketId1, socketId2],
-//   players: {
-//       [socketId]: {
-//         socketId, role: "bottom"|"top",
-//         x,y, width,height, hp, ammo,
-//         input: {up,down,left,right},
-//         shieldUntil: timestamp or 0
-//       }
-//   },
-//   bullets: [{x,y,vx,vy,owner}],
-//   items: [{id,x,y,type}],
-//   lastItemSpawnAt: timestamp,
-//   loopTimer: NodeJS.Timeout,
-//   restartReady: { [socketId]: boolean }
-// }
-
+// 방 상태 초기화
 function initRoomState(roomId, socketId1, socketId2) {
-  const middleX1 = GAME_WIDTH / 2;
+  const middleX = GAME_WIDTH / 2;
   const bottomY = GAME_HEIGHT - 80;
   const topY = 80;
-
   const now = Date.now();
 
   const players = {};
   players[socketId1] = {
     socketId: socketId1,
     role: "bottom",
-    x: middleX1,
+    x: middleX,
     y: bottomY,
     width: PLAYER_WIDTH,
     height: PLAYER_HEIGHT,
@@ -82,7 +59,7 @@ function initRoomState(roomId, socketId1, socketId2) {
   players[socketId2] = {
     socketId: socketId2,
     role: "top",
-    x: middleX1,
+    x: middleX,
     y: topY,
     width: PLAYER_WIDTH,
     height: PLAYER_HEIGHT,
@@ -129,15 +106,12 @@ function stopGameLoop(roomState) {
 
 function stepRoom(roomState) {
   const now = Date.now();
-  const dt = (now - roomState.lastUpdateAt) / 1000; // seconds
+  const dt = (now - roomState.lastUpdateAt) / 1000;
   roomState.lastUpdateAt = now;
 
-  if (roomState.gameOver) {
-    // no updates, just wait for restart / disconnect
-    return;
-  }
+  if (roomState.gameOver) return;
 
-  // Update players movement & ammo regen
+  // 플레이어 이동 & 탄약 회복
   for (const socketId of roomState.sockets) {
     const p = roomState.players[socketId];
     if (!p) continue;
@@ -158,7 +132,6 @@ function stepRoom(roomState) {
     p.x += vx * PLAYER_SPEED * dt;
     p.y += vy * PLAYER_SPEED * dt;
 
-    // Clamp positions
     const halfW = p.width / 2;
     const halfH = p.height / 2;
     if (p.x < halfW) p.x = halfW;
@@ -166,42 +139,43 @@ function stepRoom(roomState) {
     if (p.y < halfH) p.y = halfH;
     if (p.y > GAME_HEIGHT - halfH) p.y = GAME_HEIGHT - halfH;
 
-    // Ammo regen
     p.ammo += AMMO_REGEN_PER_SEC * dt;
     if (p.ammo > AMMO_MAX) p.ammo = AMMO_MAX;
   }
 
-  // Update bullets
+  // 총알 이동
   for (const bullet of roomState.bullets) {
     bullet.x += bullet.vx * dt;
     bullet.y += bullet.vy * dt;
   }
 
-  // Remove bullets out of bounds
-  roomState.bullets = roomState.bullets.filter((b) => {
-    return b.x >= 0 && b.x <= GAME_WIDTH && b.y >= 0 && b.y <= GAME_HEIGHT;
-  });
+  // 화면 밖 총알 제거
+  roomState.bullets = roomState.bullets.filter(
+    (b) =>
+      b.x >= 0 &&
+      b.x <= GAME_WIDTH &&
+      b.y >= 0 &&
+      b.y <= GAME_HEIGHT
+  );
 
-  // Bullet vs player collisions
+  // 총알 - 플레이어 충돌
   for (const bullet of roomState.bullets) {
     for (const socketId of roomState.sockets) {
       const p = roomState.players[socketId];
       if (!p) continue;
-      if (bullet.owner === socketId) continue; // don't hit self
+      if (bullet.owner === socketId) continue;
+
       const dx = bullet.x - p.x;
       const dy = bullet.y - p.y;
       const distSq = dx * dx + dy * dy;
-      const r = PLAYER_RADIUS;
-      if (distSq <= r * r) {
-        // Hit!
+      if (distSq <= PLAYER_RADIUS * PLAYER_RADIUS) {
         bullet._hit = true;
         if (now < p.shieldUntil) {
-          // shield absorbs, no hp loss
+          // 방어막만 깎임
         } else {
           p.hp -= 1;
           if (p.hp <= 0) {
             p.hp = 0;
-            // game over
             roomState.gameOver = true;
             const winnerId = roomState.sockets.find((id) => id !== socketId);
             io.to(roomState.id).emit("game_over", {
@@ -213,22 +187,20 @@ function stepRoom(roomState) {
       }
     }
   }
-
   roomState.bullets = roomState.bullets.filter((b) => !b._hit);
 
-  // Spawn items
+  // 아이템 생성
   if (
     now - roomState.lastItemSpawnAt >= ITEM_SPAWN_INTERVAL_MS &&
     !roomState.gameOver
   ) {
     roomState.lastItemSpawnAt = now;
-    // max 2 items at a time
     if (roomState.items.length < 2) {
       const itemId = "item_" + now + "_" + Math.floor(Math.random() * 10000);
       const x = 80 + Math.random() * (GAME_WIDTH - 160);
       const y = 120 + Math.random() * (GAME_HEIGHT - 240);
 
-      // 세 가지 아이템: heart / shield / ammo
+      // heart / shield / ammo
       const r = Math.random();
       let type;
       if (r < 0.4) type = "heart";
@@ -239,7 +211,7 @@ function stepRoom(roomState) {
     }
   }
 
-  // Item pickups
+  // 아이템 획득
   for (const socketId of roomState.sockets) {
     const p = roomState.players[socketId];
     if (!p) continue;
@@ -264,7 +236,7 @@ function stepRoom(roomState) {
 
   roomState.items = roomState.items.filter((item) => !item._takenBy);
 
-  // Broadcast state
+  // 상태 전송
   const state = {
     gameWidth: GAME_WIDTH,
     gameHeight: GAME_HEIGHT,
@@ -299,19 +271,16 @@ function stepRoom(roomState) {
 
 function handleShoot(socket, roomState) {
   const player = roomState.players[socket.id];
-  if (!player) return;
-  if (roomState.gameOver) return;
+  if (!player || roomState.gameOver) return;
 
-  if (player.ammo < AMMO_COST_PER_SHOT) {
-    return;
-  }
+  if (player.ammo < AMMO_COST_PER_SHOT) return;
   player.ammo -= AMMO_COST_PER_SHOT;
 
-  let dirY = player.role === "bottom" ? -1 : 1;
+  const dirY = player.role === "bottom" ? -1 : 1;
 
   const bullet = {
     x: player.x,
-    y: player.y + dirY * -player.height / 2,
+    y: player.y + (dirY * -player.height) / 2,
     vx: 0,
     vy: player.role === "bottom" ? -BULLET_SPEED : BULLET_SPEED,
     owner: socket.id
@@ -349,7 +318,6 @@ io.on("connection", (socket) => {
 
   socket.on("find_match", () => {
     if (waitingPlayer && waitingPlayer !== socket.id) {
-      // Pair with waiting player
       const otherId = waitingPlayer;
       waitingPlayer = null;
 
@@ -357,10 +325,9 @@ io.on("connection", (socket) => {
       socket.join(roomId);
       io.sockets.sockets.get(otherId)?.join(roomId);
 
-      const roomState = initRoomState(roomId, otherId, socket.id);
+      initRoomState(roomId, otherId, socket.id);
       console.log(`Room created: ${roomId} with ${otherId} and ${socket.id}`);
 
-      // Notify players
       io.to(otherId).emit("match_found", { roomId, role: "bottom" });
       io.to(socket.id).emit("match_found", { roomId, role: "top" });
     } else {
@@ -418,7 +385,11 @@ io.on("connection", (socket) => {
       [otherId]: !!roomState.restartReady[otherId]
     });
 
-    if (otherId && roomState.restartReady[socket.id] && roomState.restartReady[otherId]) {
+    if (
+      otherId &&
+      roomState.restartReady[socket.id] &&
+      roomState.restartReady[otherId]
+    ) {
       resetRoomState(roomState);
       io.to(roomId).emit("restart");
     }
@@ -431,7 +402,6 @@ io.on("connection", (socket) => {
       waitingPlayer = null;
     }
 
-    // Find room this socket was in
     const joinedRooms = Array.from(socket.rooms).filter((r) =>
       r.startsWith("room_")
     );
@@ -439,13 +409,11 @@ io.on("connection", (socket) => {
       const roomState = rooms.get(roomId);
       if (!roomState) return;
 
-      // Inform opponent
       const otherId = roomState.sockets.find((id) => id !== socket.id);
       if (otherId) {
         io.to(otherId).emit("opponent_left");
       }
 
-      // Clean up room
       stopGameLoop(roomState);
       rooms.delete(roomId);
     });
