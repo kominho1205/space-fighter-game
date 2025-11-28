@@ -349,8 +349,7 @@ body {
   display: none;
 }
 
-/* 모바일 레이아웃:
-   [캔버스] -> [모바일 조작 버튼(조이스틱)] -> [UI 패널] */
+/* 모바일 레이아웃 */
 
 @media (max-width: 768px) {
   #screen-game {
@@ -371,7 +370,7 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 16px;
+    gap: 28px; /* 조이스틱-파이어 버튼 간격 더 크게 */
   }
 
   #ui {
@@ -380,7 +379,7 @@ body {
     margin: 0 auto;
   }
 
-  /* 모바일에서는 설명/조작법 숨김 */
+  /* 모바일에서는 설명/조작법 통째로 숨김 */
   #info {
     display: none;
   }
@@ -418,6 +417,7 @@ body {
   .mobile-fire {
     display: flex;
     align-items: center;
+    margin-left: 4px; /* 살짝 더 띄움 */
   }
 
   #btnFire {
