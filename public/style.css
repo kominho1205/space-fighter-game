@@ -56,16 +56,30 @@ body {
   font-size: 14px;
 }
 
+/* ★ 새로 추가: 한 줄(라벨 + 하트)을 가로로 배치 */
+.heartsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ★ 새로 추가: "내 체력" / "상대 체력" 라벨 */
+.heartsLabel {
+  width: 72px;                /* 라벨 폭 고정 */
+  font-size: 13px;
+  color: #b8c1ff;             /* 살짝 밝은 파란색 계열 */
+}
+
 .hearts {
   min-height: 24px;
 }
 
-/* 체력 하트: 원래 형태 유지 + 하트 사이 간격 증가 */
+/* 체력 하트 (이전 버전 유지, 간격만 충분히 띄운 상태면 OK) */
 .heart {
   display: inline-block;
   width: 18px;
   height: 18px;
-  margin-right: 14px; /* 하트 사이 간격 더 띄우기 */
+  margin-right: 14px; /* 겹치지 않을 정도로 넉넉하게 */
   background: #ff4b69;
   position: relative;
   transform: rotate(-45deg);
@@ -81,7 +95,6 @@ body {
   border-radius: 50%;
 }
 
-/* 원래 쓰던 위치 값으로 복원 (형태 유지) */
 .heart::before {
   top: -9px;
   left: 0;
