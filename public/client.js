@@ -370,19 +370,28 @@ socket.on("state", (state) => {
   }
   prevCountdownInt = cInt;
 
-  // 효과음용 HP/아이템 변화 감지
   const me = state.players.find((p) => p.socketId === mySocketId);
   const enemy = state.players.find((p) => p.socketId !== mySocketId);
 
+  // 내 HP 변화
   if (me) {
-    if (lastMeHp != null && me.hp < lastMeHp) sound.playHit();
-    if (lastMeHp != null && me.hp <= 0 && lastMeHp > 0) sound.playExplosion();
+    if (lastMeHp != null && me.hp < lastMeHp) {
+      if (me.hp <= 0) {
+        // 마지막 하트에서 터질 때는 폭발음
+        sound.playExplosion();
+      } else {
+        sound.playHit();
+      }
+    }
     lastMeHp = me.hp;
   }
+
+  // 상대 HP 변화
   if (enemy) {
-    if (lastEnemyHp != null && enemy.hp < lastEnemyHp) sound.playHit();
-    if (lastEnemyHp != null && enemy.hp <= 0 && lastEnemyHp > 0)
-      sound.playExplosion();
+    if (lastEnemyHp != null && enemy.hp < lastEnemyHp) {
+      if (enemy.hp <= 0) sound.playExplosion();
+      else sound.playHit();
+    }
     lastEnemyHp = enemy.hp;
   }
 
@@ -395,6 +404,7 @@ socket.on("state", (state) => {
 
   updateUI();
 });
+
 
 socket.on("game_over", ({ winner, vsAI }) => {
   const isWinner = winner === mySocketId;
@@ -755,6 +765,9 @@ function drawFighter(p) {
   const isMe = p.socketId === mySocketId;
   const isHitInv = p.hitInvActive;
 
+  // ★ HP가 0 이하면 전투기는 그리지 않고, 폭발만 보이게
+  if (p.hp <= 0) return;
+
   const bodyColor = isMe ? "#4be1ff" : "#ff5e7a";
   const accentColor = isMe ? "#c4f4ff" : "#ffd2dd";
 
@@ -951,9 +964,9 @@ function drawAmmoItem(x, y) {
 }
 
 function drawExplosion(ex) {
-  const age = Math.min(ex.age, 1);
+  const age = Math.min(ex.age, 1); // 0 ~ 1
   const alpha = 1 - age;
-  const radius = 10 + 10 * (1 - age);
+  const radius = 18 + 22 * (1 - age); // 기존보다 크게
 
   ctx.save();
   ctx.translate(ex.x, ex.y);
@@ -961,16 +974,31 @@ function drawExplosion(ex) {
 
   const g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
   g.addColorStop(0, "rgba(255,255,255,1)");
-  g.addColorStop(0.4, "rgba(255,180,140,0.9)");
-  g.addColorStop(1, "rgba(255,120,120,0)");
+  g.addColorStop(0.3, "rgba(255,220,150,0.95)");
+  g.addColorStop(0.65, "rgba(255,120,90,0.7)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
   ctx.fillStyle = g;
 
   ctx.beginPath();
   ctx.arc(0, 0, radius, 0, Math.PI * 2);
   ctx.fill();
 
+  // 파편 느낌의 선 몇 개
+  ctx.strokeStyle = "rgba(255,230,180,0.8)";
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 6; i++) {
+    const a = (Math.PI * 2 * i) / 6;
+    const r1 = radius * 0.4;
+    const r2 = radius * (0.8 + 0.2 * Math.random());
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1);
+    ctx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+    ctx.stroke();
+  }
+
   ctx.restore();
 }
+
 
 
 function drawCenteredText(text, x, y) {
