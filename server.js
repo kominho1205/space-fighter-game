@@ -93,9 +93,6 @@ function makeNewGame(matchId, players, options) {
     const skinId = p.user.preferredSkin ?? 0;
     if (skinId === 1) hp = 4;  // 와이드 스킨
 
-    // AI HP 할인
-    if (!p.socket) hp = Math.max(1, hp - 1);
-
     const obj = {
       socket: p.socket || null,
       socketId: p.socket ? p.socket.id : `ai_${matchId}`,
