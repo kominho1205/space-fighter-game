@@ -60,12 +60,12 @@ body {
   min-height: 24px;
 }
 
-/* 체력 하트 모양 */
+/* 체력 하트: 원래 형태 유지 + 하트 사이 간격 증가 */
 .heart {
   display: inline-block;
   width: 18px;
   height: 18px;
-  margin-right: 4px;
+  margin-right: 8px; /* 하트 사이 간격 더 띄우기 */
   background: #ff4b69;
   position: relative;
   transform: rotate(-45deg);
@@ -81,14 +81,14 @@ body {
   border-radius: 50%;
 }
 
-/* 좌우 간격 넓힌 버전 */
+/* 원래 쓰던 위치 값으로 복원 (형태 유지) */
 .heart::before {
   top: -9px;
-  left: -2px;  /* 왼쪽으로 살짝 이동 */
+  left: 0;
 }
 
 .heart::after {
-  left: 11px;  /* 오른쪽으로 더 이동 */
+  left: 9px;
   top: 0;
 }
 
@@ -137,16 +137,17 @@ body {
   background: radial-gradient(circle at top, #1a2454 0, #050814 55%);
 }
 
-/* 오버레이: 클릭은 뒤로 통과시키고, 텍스트 박스만 활성 */
+/* 오버레이: 박스/배경 제거, 텍스트만 중앙에 표시 */
 #overlay {
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(5, 8, 20, 0.75);
+  /* 배경 어둡게 하는 효과 제거 */
+  background: transparent;
   z-index: 10;
-  pointer-events: none;
+  pointer-events: none; /* 뒤에 버튼 클릭 가능 */
 }
 
 #overlay.hidden {
@@ -154,12 +155,14 @@ body {
 }
 
 #overlayText {
-  padding: 24px 32px;
-  border-radius: 12px;
-  background: #0b0f2a;
-  border: 1px solid #5462ff;
-  box-shadow: 0 0 32px rgba(0, 0, 0, 0.8);
-  font-size: 18px;
+  /* 박스 제거, 텍스트만 */
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffe66d; /* 잘 보이는 색 */
   text-align: center;
   white-space: pre-line;
   pointer-events: auto;
