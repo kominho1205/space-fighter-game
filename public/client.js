@@ -46,7 +46,10 @@ socket.on("waiting", (data) => {
 
 socket.on("match_found", (data) => {
   myRole = data.role;
-  matchStatusEl.textContent = myRole === "bottom" ? "매칭 완료! 아래 전투기를 조종합니다." : "매칭 완료! 위 전투기를 조종합니다.";
+  matchStatusEl.textContent =
+    myRole === "bottom"
+      ? "매칭 완료! 아래 전투기를 조종합니다."
+      : "매칭 완료! 위 전투기를 조종합니다.";
   hideOverlay();
 });
 
@@ -58,21 +61,24 @@ socket.on("state", (state) => {
 
 socket.on("game_over", ({ winner, loser }) => {
   const isWinner = winner === mySocketId;
-  const text = isWinner ? "승리했습니다!\n\n다시 시작 버튼을 눌러 재대전을 요청하세요." : "패배했습니다...\n\n다시 시작 버튼을 눌러 재대전을 요청하세요.";
+  const text = isWinner
+    ? "승리했습니다!\n\n다시 시작 버튼을 눌러 같은 상대와 재대전을 요청하세요."
+    : "패배했습니다...\n\n다시 시작 버튼을 눌러 같은 상대와 재대전을 요청하세요.";
   showOverlay(text);
   restartBtn.disabled = false;
 });
 
 socket.on("restart_status", (status) => {
   restartStatus.me = status[mySocketId] || false;
-  const otherId = Object.keys(status).find(id => id !== mySocketId);
+  const otherId = Object.keys(status).find((id) => id !== mySocketId);
   restartStatus.other = otherId ? status[otherId] : false;
 
   let msg = "";
   if (restartStatus.me && !restartStatus.other) {
     msg = "내가 다시 시작을 눌렀습니다.\n상대의 준비를 기다리는 중...";
   } else if (!restartStatus.me && restartStatus.other) {
-    msg = "상대가 다시 시작을 눌렀습니다.\n내가 다시 시작을 누르면 재대전이 시작됩니다.";
+    msg =
+      "상대가 다시 시작을 눌렀습니다.\n내가 다시 시작을 누르면 재대전이 시작됩니다.";
   } else if (restartStatus.me && restartStatus.other) {
     msg = "곧 재대전이 시작됩니다...";
   }
@@ -89,7 +95,9 @@ socket.on("restart", () => {
 });
 
 socket.on("opponent_left", () => {
-  showOverlay("상대가 게임을 떠났습니다.\n페이지를 새로고침하여 다시 매칭을 시작하세요.");
+  showOverlay(
+    "상대가 게임을 떠났습니다.\n페이지를 새로고침하여 다시 매칭을 시작하세요."
+  );
   matchStatusEl.textContent = "상대가 떠났습니다.";
   restartBtn.disabled = true;
 });
@@ -99,7 +107,13 @@ window.addEventListener("keydown", (e) => {
   if (e.code === "Space") {
     e.preventDefault();
   }
-  if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight" || e.code === "Space") {
+  if (
+    e.key === "ArrowUp" ||
+    e.key === "ArrowDown" ||
+    e.key === "ArrowLeft" ||
+    e.key === "ArrowRight" ||
+    e.code === "Space"
+  ) {
     if (e.repeat) return;
     keys[e.key] = true;
     if (e.code === "Space") {
@@ -111,7 +125,13 @@ window.addEventListener("keydown", (e) => {
 });
 
 window.addEventListener("keyup", (e) => {
-  if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight" || e.code === "Space") {
+  if (
+    e.key === "ArrowUp" ||
+    e.key === "ArrowDown" ||
+    e.key === "ArrowLeft" ||
+    e.key === "ArrowRight" ||
+    e.code === "Space"
+  ) {
     keys[e.key] = false;
     if (e.code !== "Space") {
       sendMoveInput();
@@ -173,24 +193,26 @@ function draw() {
   }
 
   // Items
-  currentState.items.forEach(item => {
+  currentState.items.forEach((item) => {
     if (item.type === "heart") {
       drawHeartItem(item.x, item.y);
     } else if (item.type === "shield") {
       drawShieldItem(item.x, item.y);
+    } else if (item.type === "ammo") {
+      drawAmmoItem(item.x, item.y);
     }
   });
 
   // Bullets
   ctx.fillStyle = "#ffdf5e";
-  currentState.bullets.forEach(b => {
+  currentState.bullets.forEach((b) => {
     ctx.beginPath();
     ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
     ctx.fill();
   });
 
   // Players
-  currentState.players.forEach(p => {
+  currentState.players.forEach((p) => {
     drawFighter(p);
   });
 }
@@ -249,16 +271,16 @@ function drawFighter(p) {
   ctx.restore();
 }
 
+// 하트 아이템: 정상 방향 하트로 다시 그림
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(1.2, 1.2);
-  ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = "#ff4b69";
-  ctx.fillRect(-8, -8, 16, 16);
   ctx.beginPath();
-  ctx.arc(-8, 0, 8, 0, Math.PI * 2);
-  ctx.arc(0, -8, 8, 0, Math.PI * 2);
+  ctx.moveTo(0, 6);
+  ctx.bezierCurveTo(-8, 0, -8, -8, 0, -8);
+  ctx.bezierCurveTo(8, -8, 8, 0, 0, 6);
+  ctx.closePath();
   ctx.fill();
   ctx.restore();
 }
@@ -279,6 +301,23 @@ function drawShieldItem(x, y) {
   ctx.restore();
 }
 
+// 탄약 아이템: 탄약 상자 느낌
+function drawAmmoItem(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#2f7bff";
+  ctx.strokeStyle = "#c4ddff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-10, -10, 20, 20, 4);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(-2, -6, 4, 12); // 탄알 모양
+  ctx.restore();
+}
+
 function drawCenteredText(text, x, y) {
   ctx.fillStyle = "#f5f5f5";
   ctx.font = "20px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
@@ -289,8 +328,8 @@ function drawCenteredText(text, x, y) {
 
 function updateUI() {
   if (!currentState) return;
-  const me = currentState.players.find(p => p.socketId === mySocketId);
-  const enemy = currentState.players.find(p => p.socketId !== mySocketId);
+  const me = currentState.players.find((p) => p.socketId === mySocketId);
+  const enemy = currentState.players.find((p) => p.socketId !== mySocketId);
 
   // Hearts
   renderHearts(myHeartsEl, me ? me.hp : 0);
