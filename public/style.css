@@ -351,88 +351,79 @@ body {
 
 /* 모바일 레이아웃 */
 
+/* 모바일 구조 재배치 */
 @media (max-width: 768px) {
+
   #screen-game {
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
-    padding: 12px 8px 24px;
-    gap: 10px;
+    padding: 8px 0 24px;
+    gap: 12px;
   }
 
+  /* PC용 체력/탄약 숨김 */
+  #heartsWrapper,
+  #ammoWrapper,
+  #info {
+    display: none;
+  }
+
+  /* 모바일용 체력 최상단 */
+  .mobile-hearts {
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 0 12px;
+  }
+
+  /* 캔버스 */
   #gameCanvas {
     width: 100%;
     max-width: 480px;
     height: auto;
   }
 
-  #mobileControls {
+  /* 모바일 탄약 */
+  .mobile-ammo {
+    width: 100%;
+    max-width: 480px;
+    padding: 0 12px;
+  }
+
+  /* 조이스틱 + FIRE 버튼 */
+  .mobile-controls {
+    width: 100%;
+    max-width: 480px;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 28px; /* 조이스틱-파이어 버튼 간격 더 크게 */
-  }
-
-  #ui {
-    width: 100%;
-    max-width: 480px;
-    margin: 0 auto;
-  }
-
-  /* 모바일에서는 설명/조작법 통째로 숨김 */
-  #info {
-    display: none;
+    gap: 42px;  /* ← 조이스틱과 FIRE버튼 거리 더 넓힘 */
+    padding: 8px 0;
   }
 
   /* 조이스틱 */
-  #joystickWrapper {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-
   #joystickBase {
-    width: 96px;
-    height: 96px;
-    border-radius: 50%;
-    background: radial-gradient(circle, #202a4d 0, #090f26 70%);
-    border: 2px solid #3d4b80;
-    position: relative;
-    touch-action: none;
+    width: 110px;
+    height: 110px;
   }
-
   #joystickStick {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    background: #2f7bff;
-    border: 2px solid #a9c7ff;
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    box-shadow: 0 0 8px rgba(47, 123, 255, 0.8);
+    width: 48px;
+    height: 48px;
   }
 
-  .mobile-fire {
-    display: flex;
-    align-items: center;
-    margin-left: 4px; /* 살짝 더 띄움 */
+  .mobile-fire #btnFire {
+    min-width: 72px;
+    min-height: 72px;
+    font-size: 20px;
   }
 
-  #btnFire {
-    min-width: 60px;
-    min-height: 60px;
-    border-radius: 999px;
-    border: none;
-    background: #e24b5a;
-    color: #fff;
-    font-size: 18px;
-    font-weight: 700;
-    box-shadow: 0 0 10px rgba(0,0,0,0.5);
-  }
-
-  #btnFire:active {
-    background: #ff6974;
+  /* PC용 UI를 맨 아래로 */
+  #ui {
+    width: 100%;
+    max-width: 480px;
+    margin-top: 12px;
   }
 }
