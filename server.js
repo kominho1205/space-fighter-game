@@ -102,14 +102,24 @@ function makeNewGame(matchId, players, options) {
     id: matchId,
     ai: !!options.ai,
     countdown: 3, // 3초 카운트다운
+
     players: [],
     bullets: [],
     items: [],
     explosions: [],
+
     lastUpdate: now,
     itemSpawnTimer: 0,
-    restartStatus: {}
+    restartStatus: {},
+
+    // 추가
+    ended: false,
+    winnerSocketId: null,
+    endTimer: 0
   };
+  ...
+}
+
 
   players.forEach((p) => {
     const isBottom = p.role === "bottom";
