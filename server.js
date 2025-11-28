@@ -15,12 +15,12 @@ app.use(express.static("public"));
  * Matchmaking & room management
  */
 let waitingPlayer = null; // socket id of waiting player, if any
-const rooms = new Map();  // roomId -> roomState
+const rooms = new Map(); // roomId -> roomState
 
 let roomCounter = 1;
 
 function createRoomId() {
-  return "room_" + (roomCounter++);
+  return "room_" + roomCounter++;
 }
 
 // Game constants
@@ -178,7 +178,7 @@ function stepRoom(roomState) {
   }
 
   // Remove bullets out of bounds
-  roomState.bullets = roomState.bullets.filter(b => {
+  roomState.bullets = roomState.bullets.filter((b) => {
     return b.x >= 0 && b.x <= GAME_WIDTH && b.y >= 0 && b.y <= GAME_HEIGHT;
   });
 
@@ -203,7 +203,7 @@ function stepRoom(roomState) {
             p.hp = 0;
             // game over
             roomState.gameOver = true;
-            const winnerId = roomState.sockets.find(id => id !== socketId);
+            const winnerId = roomState.sockets.find((id) => id !== socketId);
             io.to(roomState.id).emit("game_over", {
               winner: winnerId,
               loser: socketId
@@ -214,17 +214,27 @@ function stepRoom(roomState) {
     }
   }
 
-  roomState.bullets = roomState.bullets.filter(b => !b._hit);
+  roomState.bullets = roomState.bullets.filter((b) => !b._hit);
 
   // Spawn items
-  if (now - roomState.lastItemSpawnAt >= ITEM_SPAWN_INTERVAL_MS && !roomState.gameOver) {
+  if (
+    now - roomState.lastItemSpawnAt >= ITEM_SPAWN_INTERVAL_MS &&
+    !roomState.gameOver
+  ) {
     roomState.lastItemSpawnAt = now;
     // max 2 items at a time
     if (roomState.items.length < 2) {
       const itemId = "item_" + now + "_" + Math.floor(Math.random() * 10000);
       const x = 80 + Math.random() * (GAME_WIDTH - 160);
       const y = 120 + Math.random() * (GAME_HEIGHT - 240);
-      const type = Math.random() < 0.5 ? "heart" : "shield";
+
+      // 세 가지 아이템: heart / shield / ammo
+      const r = Math.random();
+      let type;
+      if (r < 0.4) type = "heart";
+      else if (r < 0.8) type = "shield";
+      else type = "ammo";
+
       roomState.items.push({ id: itemId, x, y, type });
     }
   }
@@ -233,7 +243,7 @@ function stepRoom(roomState) {
   for (const socketId of roomState.sockets) {
     const p = roomState.players[socketId];
     if (!p) continue;
-    roomState.items.forEach(item => {
+    roomState.items.forEach((item) => {
       const dx = item.x - p.x;
       const dy = item.y - p.y;
       const distSq = dx * dx + dy * dy;
@@ -245,34 +255,43 @@ function stepRoom(roomState) {
           if (p.hp > MAX_HP) p.hp = MAX_HP;
         } else if (item.type === "shield") {
           p.shieldUntil = now + SHIELD_DURATION_MS;
+        } else if (item.type === "ammo") {
+          p.ammo = AMMO_MAX; // 탄약 풀 충전
         }
       }
     });
   }
 
-  roomState.items = roomState.items.filter(item => !item._takenBy);
+  roomState.items = roomState.items.filter((item) => !item._takenBy);
 
   // Broadcast state
   const state = {
     gameWidth: GAME_WIDTH,
     gameHeight: GAME_HEIGHT,
-    players: roomState.sockets.map(socketId => {
-      const p = roomState.players[socketId];
-      if (!p) return null;
-      return {
-        socketId: p.socketId,
-        role: p.role,
-        x: p.x,
-        y: p.y,
-        width: p.width,
-        height: p.height,
-        hp: p.hp,
-        ammo: p.ammo,
-        shieldActive: now < p.shieldUntil
-      };
-    }).filter(Boolean),
-    bullets: roomState.bullets.map(b => ({ x: b.x, y: b.y })),
-    items: roomState.items.map(i => ({ id: i.id, x: i.x, y: i.y, type: i.type }))
+    players: roomState.sockets
+      .map((socketId) => {
+        const p = roomState.players[socketId];
+        if (!p) return null;
+        return {
+          socketId: p.socketId,
+          role: p.role,
+          x: p.x,
+          y: p.y,
+          width: p.width,
+          height: p.height,
+          hp: p.hp,
+          ammo: p.ammo,
+          shieldActive: now < p.shieldUntil
+        };
+      })
+      .filter(Boolean),
+    bullets: roomState.bullets.map((b) => ({ x: b.x, y: b.y })),
+    items: roomState.items.map((i) => ({
+      id: i.id,
+      x: i.x,
+      y: i.y,
+      type: i.type
+    }))
   };
 
   io.to(roomState.id).emit("state", state);
@@ -288,24 +307,16 @@ function handleShoot(socket, roomState) {
   }
   player.ammo -= AMMO_COST_PER_SHOT;
 
-  let dirY = -1;
-  if (player.role === "bottom") {
-    dirY = -1;
-  } else {
-    dirY = 1;
-  }
+  let dirY = player.role === "bottom" ? -1 : 1;
 
   const bullet = {
     x: player.x,
-    y: player.y + (dirY * -player.height / 2), // start slightly in front
+    y: player.y + dirY * -player.height / 2,
     vx: 0,
-    vy: dirY * -BULLET_SPEED // Negative because canvas y+ is down; adjust so that bottom fires up
+    vy: player.role === "bottom" ? -BULLET_SPEED : BULLET_SPEED,
+    owner: socket.id
   };
 
-  // Correct bullet direction: bottom should go up (negative y), top should go down (positive y)
-  bullet.vy = player.role === "bottom" ? -BULLET_SPEED : BULLET_SPEED;
-
-  bullet.owner = socket.id;
   roomState.bullets.push(bullet);
 }
 
@@ -359,7 +370,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("move", (input) => {
-    const roomsJoined = Array.from(socket.rooms).filter(r => r.startsWith("room_"));
+    const roomsJoined = Array.from(socket.rooms).filter((r) =>
+      r.startsWith("room_")
+    );
     if (roomsJoined.length === 0) return;
     const roomId = roomsJoined[0];
     const roomState = rooms.get(roomId);
@@ -377,7 +390,9 @@ io.on("connection", (socket) => {
   });
 
   socket.on("shoot", () => {
-    const roomsJoined = Array.from(socket.rooms).filter(r => r.startsWith("room_"));
+    const roomsJoined = Array.from(socket.rooms).filter((r) =>
+      r.startsWith("room_")
+    );
     if (roomsJoined.length === 0) return;
     const roomId = roomsJoined[0];
     const roomState = rooms.get(roomId);
@@ -387,14 +402,16 @@ io.on("connection", (socket) => {
   });
 
   socket.on("restart_request", () => {
-    const roomsJoined = Array.from(socket.rooms).filter(r => r.startsWith("room_"));
+    const roomsJoined = Array.from(socket.rooms).filter((r) =>
+      r.startsWith("room_")
+    );
     if (roomsJoined.length === 0) return;
     const roomId = roomsJoined[0];
     const roomState = rooms.get(roomId);
     if (!roomState) return;
 
     roomState.restartReady[socket.id] = true;
-    const otherId = roomState.sockets.find(id => id !== socket.id);
+    const otherId = roomState.sockets.find((id) => id !== socket.id);
 
     io.to(roomId).emit("restart_status", {
       [socket.id]: true,
@@ -415,13 +432,15 @@ io.on("connection", (socket) => {
     }
 
     // Find room this socket was in
-    const joinedRooms = Array.from(socket.rooms).filter(r => r.startsWith("room_"));
-    joinedRooms.forEach(roomId => {
+    const joinedRooms = Array.from(socket.rooms).filter((r) =>
+      r.startsWith("room_")
+    );
+    joinedRooms.forEach((roomId) => {
       const roomState = rooms.get(roomId);
       if (!roomState) return;
 
       // Inform opponent
-      const otherId = roomState.sockets.find(id => id !== socket.id);
+      const otherId = roomState.sockets.find((id) => id !== socket.id);
       if (otherId) {
         io.to(otherId).emit("opponent_left");
       }
