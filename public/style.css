@@ -135,6 +135,8 @@ body {
   background: radial-gradient(circle at top, #1a2454 0, #050814 55%);
 }
 
+/* ★ 여기서부터 오버레이 클릭 막힘 해결 부분 */
+
 #overlay {
   position: fixed;
   inset: 0;
@@ -143,6 +145,7 @@ body {
   justify-content: center;
   background: rgba(5, 8, 20, 0.75);
   z-index: 10;
+  pointer-events: none;      /* 전체 오버레이는 클릭을 통과시킴 */
 }
 
 #overlay.hidden {
@@ -158,4 +161,5 @@ body {
   font-size: 18px;
   text-align: center;
   white-space: pre-line;
+  pointer-events: auto;      /* 텍스트 박스만 마우스 이벤트 가능(선택 등) */
 }
