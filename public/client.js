@@ -82,9 +82,7 @@ socket.on("restart_status", (status) => {
   } else if (restartStatus.me && restartStatus.other) {
     msg = "곧 재대전이 시작됩니다...";
   }
-  if (msg) {
-    showOverlay(msg);
-  }
+  if (msg) showOverlay(msg);
 });
 
 socket.on("restart", () => {
@@ -104,9 +102,8 @@ socket.on("opponent_left", () => {
 
 // Input handling
 window.addEventListener("keydown", (e) => {
-  if (e.code === "Space") {
-    e.preventDefault();
-  }
+  if (e.code === "Space") e.preventDefault();
+
   if (
     e.key === "ArrowUp" ||
     e.key === "ArrowDown" ||
@@ -226,7 +223,7 @@ function drawFighter(p) {
   ctx.translate(p.x, p.y);
 
   if (p.role === "top") {
-    ctx.rotate(Math.PI); // flip for top
+    ctx.rotate(Math.PI);
   }
 
   // Shield
@@ -271,22 +268,17 @@ function drawFighter(p) {
   ctx.restore();
 }
 
-// 하트 아이템: 체력 하트와 같은 구조 + 좌우 간격 넓힘
+/* 아이템 하트: 회전 없이 위로 뾰족한 일반 하트 */
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = "#ff4b69";
-
-  // 중앙 네모
-  ctx.fillRect(-9, -9, 18, 18);
-
-  // 좌우 원 위치를 좀 더 벌림 (CSS와 비슷한 비율)
   ctx.beginPath();
-  ctx.arc(-11, 0, 9, 0, Math.PI * 2); // 왼쪽 원
-  ctx.arc(2, -9, 9, 0, Math.PI * 2);  // 오른쪽 원
+  ctx.moveTo(0, 6);
+  ctx.bezierCurveTo(-8, 0, -8, -8, 0, -8);
+  ctx.bezierCurveTo(8, -8, 8, 0, 0, 6);
+  ctx.closePath();
   ctx.fill();
-
   ctx.restore();
 }
 
@@ -306,7 +298,7 @@ function drawShieldItem(x, y) {
   ctx.restore();
 }
 
-// 탄약 아이템: 탄약 상자 느낌
+// 탄약 아이템: 탄약 상자
 function drawAmmoItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
@@ -324,7 +316,7 @@ function drawAmmoItem(x, y) {
   }
 
   ctx.fillStyle = "#ffffff";
-  ctx.fillRect(-2, -6, 4, 12); // 탄알 모양
+  ctx.fillRect(-2, -6, 4, 12);
   ctx.restore();
 }
 
@@ -341,11 +333,9 @@ function updateUI() {
   const me = currentState.players.find((p) => p.socketId === mySocketId);
   const enemy = currentState.players.find((p) => p.socketId !== mySocketId);
 
-  // Hearts
   renderHearts(myHeartsEl, me ? me.hp : 0);
   renderHearts(enemyHeartsEl, enemy ? enemy.hp : 0);
 
-  // Ammo gauge
   if (me) {
     const ratio = Math.max(0, Math.min(1, me.ammo / 100));
     ammoFillEl.style.width = (ratio * 100).toFixed(0) + "%";
