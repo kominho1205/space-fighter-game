@@ -45,8 +45,7 @@ const socket = io();
 socket.emit("identify", { userId, nickname });
 
 socket.on("connect", () => {
-  // 재연결 시에도 identify
-  socket.emit("identify", { userId, nickname });
+  socket.emit("identify", { userId, nickname }); // 재연결 시
 });
 
 // 최신 프로필
@@ -81,6 +80,14 @@ document.getElementById("nicknameConfirmBtn").addEventListener("click", () => {
 
 // 홈 화면 버튼
 document.getElementById("btnPlay").addEventListener("click", () => {
+  // 이전 판 상태 초기화
+  currentState = null;
+  myRole = null;
+  restartStatus = { me: false, other: false };
+  restartBtn.disabled = true;
+  hideOverlay();
+  matchStatusEl.textContent = "매칭 대기 중...";
+
   showScreen("game");
   socket.emit("find_match");
 });
@@ -125,10 +132,10 @@ function renderLeaderboard(list) {
 // ---------------- 스킨 선택 ----------------
 
 const SKIN_DATA = [
-  { id: 0, name: "기본", requiredScore: 0, desc: "기본 전투기" },
-  { id: 1, name: "와이드", requiredScore: 200, desc: "넓은 날개, 황금탄" },
-  { id: 2, name: "다트", requiredScore: 400, desc: "날렵한 삼각형, 초록탄" },
-  { id: 3, name: "레이저", requiredScore: 700, desc: "레이저 탄환" }
+  { id: 0, name: "기본", requiredScore: 0, desc: "기본 전투기 (HP 3, 보통 속도)" },
+  { id: 1, name: "와이드", requiredScore: 200, desc: "HP 4, 조금 느림" },
+  { id: 2, name: "다트", requiredScore: 400, desc: "HP 3, 조금 더 빠름" },
+  { id: 3, name: "레이저", requiredScore: 700, desc: "HP 3, 긴 레이저 탄" }
 ];
 
 function renderSkinList() {
@@ -221,6 +228,8 @@ socket.on("match_found", (data) => {
     myRole === "bottom"
       ? "매칭 완료! 아래 전투기를 조종합니다."
       : "매칭 완료! 위 전투기를 조종합니다.";
+  restartStatus = { me: false, other: false };
+  restartBtn.disabled = true;
   hideOverlay();
 });
 
@@ -263,11 +272,15 @@ socket.on("restart", () => {
 });
 
 socket.on("opponent_left", () => {
+  // 상대가 나갔을 때: 이번 판 상태 정리
   showOverlay(
-    "상대가 게임을 떠났습니다.\n페이지를 새로고침하거나 새 상대 찾기를 눌러주세요."
+    "상대가 게임을 떠났습니다.\n홈으로 돌아가거나 새 상대 찾기를 눌러주세요."
   );
   matchStatusEl.textContent = "상대가 떠났습니다.";
   restartBtn.disabled = true;
+  currentState = null;
+  myRole = null;
+  restartStatus = { me: false, other: false };
 });
 
 // 입력 처리
@@ -394,30 +407,43 @@ function draw() {
 }
 
 function drawBullet(b) {
-  let color;
-  switch (b.skinId) {
-    case 1:
-      color = "#ffd24d"; // 와이드: 노란 탄
-      break;
-    case 2:
-      color = "#7bffb2"; // 다트: 초록 탄
-      break;
-    case 3:
-      color = "#f279ff"; // 레이저형: 보라 탄
-      break;
-    default:
-      color = "#ffdf5e"; // 기본
-  }
   ctx.save();
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.translate(b.x, b.y);
+
+  switch (b.skinId) {
+    case 1: // 와이드: 노란 둥근탄
+      ctx.fillStyle = "#ffd24d";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 2: // 다트: 초록 탄
+      ctx.fillStyle = "#7bffb2";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 3: // 레이저: 세로로 긴 레이저
+      ctx.fillStyle = "#f279ff";
+      ctx.beginPath();
+      ctx.roundRect
+        ? ctx.roundRect(-2, -12, 4, 24, 2)
+        : ctx.fillRect(-2, -12, 4, 24);
+      ctx.fill();
+      break;
+    default: // 기본
+      ctx.fillStyle = "#ffdf5e";
+      ctx.beginPath();
+      ctx.arc(0, 0, 4, 0, Math.PI * 2);
+      ctx.fill();
+  }
+
   ctx.restore();
 }
 
 function drawFighter(p) {
   const isMe = p.socketId === mySocketId;
+  const isHitInv = p.hitInvActive;
 
   const bodyColor = isMe ? "#4be1ff" : "#ff5e7a";
   const accentColor = isMe ? "#c4f4ff" : "#ffd2dd";
@@ -425,19 +451,15 @@ function drawFighter(p) {
   ctx.save();
   ctx.translate(p.x, p.y);
 
-  if (p.role === "top") {
-    ctx.rotate(Math.PI);
+  // 피격 무적일 때 깜빡임
+  if (isHitInv) {
+    const t = performance.now() * 0.02;
+    const alpha = 0.3 + (Math.sin(t) + 1) * 0.35; // 0.3~1.0
+    ctx.globalAlpha = alpha;
   }
 
-  // 방어막
-  if (p.shieldActive) {
-    ctx.beginPath();
-    ctx.arc(0, 0, 28, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(144, 226, 255, 0.8)";
-    ctx.lineWidth = 3;
-    ctx.setLineDash([6, 4]);
-    ctx.stroke();
-    ctx.setLineDash([]);
+  if (p.role === "top") {
+    ctx.rotate(Math.PI);
   }
 
   const skinId = p.skinId ?? 0;
@@ -454,6 +476,17 @@ function drawFighter(p) {
       break;
     default:
       drawDefaultShip(bodyColor, accentColor);
+  }
+
+  // 방어막
+  if (p.shieldActive) {
+    ctx.beginPath();
+    ctx.arc(0, 0, 28, 0, Math.PI * 2);
+    ctx.strokeStyle = "rgba(144, 226, 255, 0.8)";
+    ctx.lineWidth = 3;
+    ctx.setLineDash([6, 4]);
+    ctx.stroke();
+    ctx.setLineDash([]);
   }
 
   ctx.restore();
@@ -648,7 +681,12 @@ function drawCenteredText(text, x, y) {
 
 // UI 업데이트
 function updateUI() {
-  if (!currentState) return;
+  if (!currentState) {
+    myHeartsEl.innerHTML = "";
+    enemyHeartsEl.innerHTML = "";
+    ammoFillEl.style.width = "0%";
+    return;
+  }
   const me = currentState.players.find((p) => p.socketId === mySocketId);
   const enemy = currentState.players.find((p) => p.socketId !== mySocketId);
 
