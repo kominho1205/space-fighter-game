@@ -8,11 +8,10 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
-// 정적 파일 제공
 app.use(express.static("public"));
 
-let waitingPlayer = null; // 대기 중인 플레이어 socket id
-const rooms = new Map();  // roomId -> roomState
+let waitingPlayer = null;
+const rooms = new Map();
 
 let roomCounter = 1;
 function createRoomId() {
@@ -34,8 +33,8 @@ const SHIELD_DURATION_MS = 2000;
 const ITEM_SPAWN_INTERVAL_MS = 7000;
 const ITEM_RADIUS = 15;
 const PLAYER_RADIUS = 22;
+const EXPLOSION_DURATION_MS = 350;
 
-// 방 상태 초기화
 function initRoomState(roomId, socketId1, socketId2) {
   const middleX = GAME_WIDTH / 2;
   const bottomY = GAME_HEIGHT - 80;
@@ -53,7 +52,8 @@ function initRoomState(roomId, socketId1, socketId2) {
     hp: MAX_HP,
     ammo: AMMO_MAX,
     input: { up: false, down: false, left: false, right: false },
-    shieldUntil: 0
+    shieldUntil: 0,
+    skinId: 0
   };
 
   players[socketId2] = {
@@ -66,7 +66,8 @@ function initRoomState(roomId, socketId1, socketId2) {
     hp: MAX_HP,
     ammo: AMMO_MAX,
     input: { up: false, down: false, left: false, right: false },
-    shieldUntil: 0
+    shieldUntil: 0,
+    skinId: 0
   };
 
   const roomState = {
@@ -75,6 +76,7 @@ function initRoomState(roomId, socketId1, socketId2) {
     players,
     bullets: [],
     items: [],
+    explosions: [],
     lastItemSpawnAt: now,
     restartReady: {},
     lastUpdateAt: now,
@@ -111,7 +113,7 @@ function stepRoom(roomState) {
 
   if (roomState.gameOver) return;
 
-  // 플레이어 이동 & 탄약 회복
+  // 플레이어 이동 + 탄약 회복
   for (const socketId of roomState.sockets) {
     const p = roomState.players[socketId];
     if (!p) continue;
@@ -170,8 +172,16 @@ function stepRoom(roomState) {
       const distSq = dx * dx + dy * dy;
       if (distSq <= PLAYER_RADIUS * PLAYER_RADIUS) {
         bullet._hit = true;
+
+        // 폭발 이펙트 위치 기록
+        roomState.explosions.push({
+          x: bullet.x,
+          y: bullet.y,
+          createdAt: now
+        });
+
         if (now < p.shieldUntil) {
-          // 방어막만 깎임
+          // 방어막에 막힘
         } else {
           p.hp -= 1;
           if (p.hp <= 0) {
@@ -200,7 +210,6 @@ function stepRoom(roomState) {
       const x = 80 + Math.random() * (GAME_WIDTH - 160);
       const y = 120 + Math.random() * (GAME_HEIGHT - 240);
 
-      // heart / shield / ammo
       const r = Math.random();
       let type;
       if (r < 0.4) type = "heart";
@@ -228,13 +237,17 @@ function stepRoom(roomState) {
         } else if (item.type === "shield") {
           p.shieldUntil = now + SHIELD_DURATION_MS;
         } else if (item.type === "ammo") {
-          p.ammo = AMMO_MAX; // 탄약 풀 충전
+          p.ammo = AMMO_MAX;
         }
       }
     });
   }
-
   roomState.items = roomState.items.filter((item) => !item._takenBy);
+
+  // 폭발 이펙트 수명 정리
+  roomState.explosions = roomState.explosions.filter(
+    (ex) => now - ex.createdAt < EXPLOSION_DURATION_MS
+  );
 
   // 상태 전송
   const state = {
@@ -253,7 +266,8 @@ function stepRoom(roomState) {
           height: p.height,
           hp: p.hp,
           ammo: p.ammo,
-          shieldActive: now < p.shieldUntil
+          shieldActive: now < p.shieldUntil,
+          skinId: p.skinId ?? 0
         };
       })
       .filter(Boolean),
@@ -263,6 +277,11 @@ function stepRoom(roomState) {
       x: i.x,
       y: i.y,
       type: i.type
+    })),
+    explosions: roomState.explosions.map((ex) => ({
+      x: ex.x,
+      y: ex.y,
+      age: Math.min((now - ex.createdAt) / EXPLOSION_DURATION_MS, 1)
     }))
   };
 
@@ -308,6 +327,7 @@ function resetRoomState(roomState) {
   }
   roomState.bullets = [];
   roomState.items = [];
+  roomState.explosions = [];
   roomState.lastItemSpawnAt = now;
   roomState.restartReady = {};
   roomState.gameOver = false;
@@ -366,6 +386,25 @@ io.on("connection", (socket) => {
     if (!roomState) return;
 
     handleShoot(socket, roomState);
+  });
+
+  // 스킨 설정
+  socket.on("set_skin", ({ skinId }) => {
+    const roomsJoined = Array.from(socket.rooms).filter((r) =>
+      r.startsWith("room_")
+    );
+    if (roomsJoined.length === 0) return;
+    const roomId = roomsJoined[0];
+    const roomState = rooms.get(roomId);
+    if (!roomState) return;
+    const player = roomState.players[socket.id];
+    if (!player) return;
+
+    // 0~2 사이만 허용
+    const id = Number(skinId);
+    if (id === 0 || id === 1 || id === 2) {
+      player.skinId = id;
+    }
   });
 
   socket.on("restart_request", () => {
