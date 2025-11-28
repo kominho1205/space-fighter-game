@@ -119,7 +119,8 @@ function renderLeaderboard(list) {
   ul.innerHTML = "";
   list.forEach((p, idx) => {
     const li = document.createElement("li");
-    li.textContent = `${idx + 1}. ${p.nickname} - ${p.score}`;
+    // 기존: `${idx + 1}. ${p.nickname} - ${p.score}`
+    li.textContent = `${p.nickname} - ${p.score}`;
     ul.appendChild(li);
   });
 }
