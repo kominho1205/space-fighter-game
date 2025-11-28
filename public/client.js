@@ -115,7 +115,7 @@ document.getElementById("btnGameBack").addEventListener("click", () => {
   showScreen("home");
 });
 
-// 랭킹 렌더링 (ol 이 번호 붙이므로 idx+1 제거)
+// 랭킹 렌더링 (ol 자체 번호 사용)
 function renderLeaderboard(list) {
   const ul = document.getElementById("rankingList");
   ul.innerHTML = "";
@@ -187,6 +187,11 @@ const myHeartsEl = document.getElementById("myHearts");
 const enemyHeartsEl = document.getElementById("enemyHearts");
 const ammoFillEl = document.getElementById("ammoFill");
 const restartBtn = document.getElementById("restartBtn");
+
+// 모바일용 요소
+const mobileMyHeartsEl = document.getElementById("mobileMyHearts");
+const mobileEnemyHeartsEl = document.getElementById("mobileEnemyHearts");
+const mobileAmmoFillEl = document.getElementById("mobileAmmoFill");
 
 let mySocketId = null;
 let myRole = null;
@@ -295,10 +300,11 @@ window.addEventListener("keydown", (e) => {
     e.code === "Space"
   ) {
     if (e.repeat) return;
-    keys[e.key] = true;
     if (e.code === "Space") {
+      keys.Space = true;
       tryShoot();
     } else {
+      keys[e.key] = true;
       sendMoveInput();
     }
   }
@@ -312,8 +318,10 @@ window.addEventListener("keyup", (e) => {
     e.key === "ArrowRight" ||
     e.code === "Space"
   ) {
-    keys[e.key] = false;
-    if (e.code !== "Space") {
+    if (e.code === "Space") {
+      keys.Space = false;
+    } else {
+      keys[e.key] = false;
       sendMoveInput();
     }
   }
@@ -343,8 +351,7 @@ restartBtn.addEventListener("click", () => {
   restartBtn.disabled = true;
 });
 
-// ----- 모바일 FIRE 버튼만 Space에 매핑 -----
-
+/* ---- 모바일 FIRE 버튼: 스페이스 ---- */
 function registerButtonHold(buttonId, keyName) {
   const el = document.getElementById(buttonId);
   if (!el) return;
@@ -377,8 +384,7 @@ function registerButtonHold(buttonId, keyName) {
 
 registerButtonHold("btnFire", "Space");
 
-// ----- 가상 조이스틱 -----
-
+/* ---- 가상 조이스틱 ---- */
 const joystickBase = document.getElementById("joystickBase");
 const joystickStick = document.getElementById("joystickStick");
 
@@ -386,7 +392,7 @@ let joystickActive = false;
 let joystickPointerId = null;
 
 if (joystickBase && joystickStick) {
-  const maxRadius = 36;
+  const maxRadius = 40;
   const deadZone = 0.25;
 
   const updateFromEvent = (e) => {
@@ -450,7 +456,7 @@ if (joystickBase && joystickStick) {
   joystickBase.addEventListener("pointercancel", end);
 }
 
-// 모바일에서 캔버스/조이스틱 쪽만 스크롤 막기
+// 모바일에서 캔버스/조이스틱 쪽 스크롤 방지
 ["touchstart", "touchmove"].forEach((evtName) => {
   document.addEventListener(
     evtName,
@@ -796,11 +802,15 @@ function drawCenteredText(text, x, y) {
   ctx.fillText(text, x, y);
 }
 
+// UI 업데이트 (모바일/PC 둘 다 갱신)
 function updateUI() {
   if (!currentState) {
     myHeartsEl.innerHTML = "";
     enemyHeartsEl.innerHTML = "";
     ammoFillEl.style.width = "0%";
+    if (mobileMyHeartsEl) mobileMyHeartsEl.innerHTML = "";
+    if (mobileEnemyHeartsEl) mobileEnemyHeartsEl.innerHTML = "";
+    if (mobileAmmoFillEl) mobileAmmoFillEl.style.width = "0%";
     return;
   }
   const me = currentState.players.find((p) => p.socketId === mySocketId);
@@ -809,9 +819,15 @@ function updateUI() {
   renderHearts(myHeartsEl, me ? me.hp : 0);
   renderHearts(enemyHeartsEl, enemy ? enemy.hp : 0);
 
+  if (mobileMyHeartsEl) renderHearts(mobileMyHeartsEl, me ? me.hp : 0);
+  if (mobileEnemyHeartsEl)
+    renderHearts(mobileEnemyHeartsEl, enemy ? enemy.hp : 0);
+
   if (me) {
     const ratio = Math.max(0, Math.min(1, me.ammo / 100));
     ammoFillEl.style.width = (ratio * 100).toFixed(0) + "%";
+    if (mobileAmmoFillEl)
+      mobileAmmoFillEl.style.width = (ratio * 100).toFixed(0) + "%";
 
     const rankScoreEl = document.getElementById("rankScore");
     if (rankScoreEl && typeof me.score === "number") {
@@ -821,6 +837,7 @@ function updateUI() {
 }
 
 function renderHearts(container, hp) {
+  if (!container) return;
   container.innerHTML = "";
   for (let i = 0; i < hp; i++) {
     const el = document.createElement("span");
