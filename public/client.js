@@ -283,7 +283,7 @@ socket.on("opponent_left", () => {
   restartStatus = { me: false, other: false };
 });
 
-// 입력 처리
+// 입력 처리 (키보드)
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space") e.preventDefault();
 
@@ -346,6 +346,58 @@ restartBtn.addEventListener("click", () => {
 // 새 상대 찾기: 새로고침
 quickMatchBtn.addEventListener("click", () => {
   window.location.reload();
+});
+
+// -------- 모바일/마우스 버튼을 키 입력으로 매핑 --------
+function registerButtonHold(buttonId, keyName) {
+  const el = document.getElementById(buttonId);
+  if (!el) return;
+
+  const press = (e) => {
+    e.preventDefault();
+    keys[keyName] = true;
+    if (keyName === "Space") {
+      tryShoot();
+    } else {
+      sendMoveInput();
+    }
+  };
+
+  const release = (e) => {
+    e.preventDefault();
+    keys[keyName] = false;
+    if (keyName !== "Space") {
+      sendMoveInput();
+    }
+  };
+
+  // 터치 + 마우스 둘 다 지원
+  el.addEventListener("touchstart", press);
+  el.addEventListener("touchend", release);
+  el.addEventListener("touchcancel", release);
+  el.addEventListener("mousedown", press);
+  el.addEventListener("mouseup", release);
+  el.addEventListener("mouseleave", release);
+}
+
+// 모바일 컨트롤 버튼들 등록
+registerButtonHold("btnUp", "ArrowUp");
+registerButtonHold("btnDown", "ArrowDown");
+registerButtonHold("btnLeft", "ArrowLeft");
+registerButtonHold("btnRight", "ArrowRight");
+registerButtonHold("btnFire", "Space");
+
+// 모바일에서 스크롤 방지 (게임 화면 터치 시)
+["touchstart", "touchmove"].forEach((evtName) => {
+  document.addEventListener(
+    evtName,
+    (e) => {
+      if (e.target.closest("#screen-game")) {
+        e.preventDefault();
+      }
+    },
+    { passive: false }
+  );
 });
 
 // ---------------- 렌더링 ----------------
@@ -426,9 +478,11 @@ function drawBullet(b) {
     case 3: // 레이저: 세로로 긴 레이저
       ctx.fillStyle = "#f279ff";
       ctx.beginPath();
-      ctx.roundRect
-        ? ctx.roundRect(-2, -12, 4, 24, 2)
-        : ctx.fillRect(-2, -12, 4, 24);
+      if (ctx.roundRect) {
+        ctx.roundRect(-2, -12, 4, 24, 2);
+      } else {
+        ctx.fillRect(-2, -12, 4, 24);
+      }
       ctx.fill();
       break;
     default: // 기본
