@@ -9,13 +9,14 @@
 <body>
   <div id="app">
 
-    <!-- 1. 닉네임 입력 화면 -->
+    <!-- 1. 로그인 화면 (닉네임 + 비밀번호) -->
     <div id="screen-nickname" class="screen">
       <div class="panel">
         <h1>Space Z</h1>
-        <p class="sub">사용할 닉네임을 입력하세요.</p>
-        <input id="nicknameInput" maxlength="16" placeholder="최대 16자" />
-        <button id="nicknameConfirmBtn">확인</button>
+        <p class="sub">사용할 닉네임과 비밀번호를 입력하세요.<br/>처음 입력하면 계정이 생성됩니다.</p>
+        <input id="nicknameInput" maxlength="16" placeholder="닉네임 (최대 16자)" />
+        <input id="passwordInput" type="password" maxlength="32" placeholder="비밀번호" />
+        <button id="nicknameConfirmBtn">로그인 / 계정 만들기</button>
       </div>
     </div>
 
@@ -35,6 +36,7 @@
         <button id="btnPlay" class="primary">게임 시작</button>
         <button id="btnSkins">스킨 선택</button>
         <button id="btnRanking">랭킹 보기</button>
+        <button id="btnLogout">로그아웃</button>
       </div>
     </div>
 
@@ -66,11 +68,11 @@
       <!-- 모바일 최상단: 체력 -->
       <div id="mobileHeartsWrapper" class="mobile-only mobile-hearts">
         <div class="heartsRow">
-          <div class="heartsLabel">내 체력</div>
+          <div class="heartsLabel" id="mobileMyLabel">내 체력</div>
           <div id="mobileMyHearts" class="hearts"></div>
         </div>
         <div class="heartsRow">
-          <div class="heartsLabel">상대 체력</div>
+          <div class="heartsLabel" id="mobileEnemyLabel">상대 체력</div>
           <div id="mobileEnemyHearts" class="hearts"></div>
         </div>
       </div>
@@ -108,11 +110,11 @@
         <!-- PC 체력 -->
         <div id="heartsWrapper">
           <div class="heartsRow">
-            <div class="heartsLabel">내 체력</div>
+            <div class="heartsLabel" id="pcMyLabel">내 체력</div>
             <div id="myHearts" class="hearts"></div>
           </div>
           <div class="heartsRow">
-            <div class="heartsLabel">상대 체력</div>
+            <div class="heartsLabel" id="pcEnemyLabel">상대 체력</div>
             <div id="enemyHearts" class="hearts"></div>
           </div>
         </div>
