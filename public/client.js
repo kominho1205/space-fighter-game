@@ -800,15 +800,178 @@ function drawFighter(p) {
   ctx.restore();
 }
 
-// ship drawing functions ... (기존 그대로)
-function drawDefaultShip(bodyColor, accentColor) { /* 기존 코드 그대로 */ }
-function drawWideShip(bodyColor, accentColor) { /* 기존 코드 그대로 */ }
-function drawDartShip(bodyColor, accentColor) { /* 기존 코드 그대로 */ }
-function drawLaserShip(bodyColor, accentColor) { /* 기존 코드 그대로 */ }
-function drawHeartItem(x, y) { /* 기존 코드 그대로 */ }
-function drawShieldItem(x, y) { /* 기존 코드 그대로 */ }
-function drawAmmoItem(x, y) { /* 기존 코드 그대로 */ }
-function drawExplosion(ex) { /* 기존 코드 그대로 */ }
+function drawDefaultShip(bodyColor, accentColor) {
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -22);
+  ctx.lineTo(18, 16);
+  ctx.lineTo(-18, 16);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -6, 7, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(-26, 4, 52, 6);
+
+  ctx.fillStyle = "rgba(255, 209, 138, 0.85)";
+  ctx.beginPath();
+  ctx.moveTo(-10, 16);
+  ctx.lineTo(0, 30);
+  ctx.lineTo(10, 16);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawWideShip(bodyColor, accentColor) {
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -20);
+  ctx.lineTo(26, 10);
+  ctx.lineTo(0, 18);
+  ctx.lineTo(-26, 10);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -4, 8, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 209, 138, 0.9)";
+  ctx.beginPath();
+  ctx.moveTo(-6, 18);
+  ctx.lineTo(0, 30);
+  ctx.lineTo(6, 18);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawDartShip(bodyColor, accentColor) {
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -24);
+  ctx.lineTo(14, 18);
+  ctx.lineTo(0, 12);
+  ctx.lineTo(-14, 18);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -8, 6, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(-12, 4, 24, 4);
+
+  ctx.fillStyle = "rgba(255, 209, 138, 0.9)";
+  ctx.beginPath();
+  ctx.moveTo(-5, 18);
+  ctx.lineTo(0, 30);
+  ctx.lineTo(5, 18);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawLaserShip(bodyColor, accentColor) {
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -24);
+  ctx.lineTo(10, 0);
+  ctx.lineTo(6, 20);
+  ctx.lineTo(-6, 20);
+  ctx.lineTo(-10, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -6, 5, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.fillRect(-3, 20, 6, 10);
+}
+
+function drawHeartItem(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI / 4);
+  ctx.fillStyle = "#ff4b69";
+
+  ctx.fillRect(-9, -9, 18, 18);
+
+  ctx.beginPath();
+  ctx.arc(-9, 0, 9, 0, Math.PI * 2);
+  ctx.arc(0, -9, 9, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawShieldItem(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = "#77f5ff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, -12);
+  ctx.lineTo(10, -4);
+  ctx.lineTo(6, 10);
+  ctx.lineTo(-6, 10);
+  ctx.lineTo(-10, -4);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawAmmoItem(x, y) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.fillStyle = "#2f7bff";
+  ctx.strokeStyle = "#c4ddff";
+  ctx.lineWidth = 2;
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(-10, -10, 20, 20, 4);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillRect(-10, -10, 20, 20);
+    ctx.strokeRect(-10, -10, 20, 20);
+  }
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(-2, -6, 4, 12);
+  ctx.restore();
+}
+
+function drawExplosion(ex) {
+  const age = Math.min(ex.age, 1);
+  const alpha = 1 - age;
+  const radius = 10 + 10 * (1 - age);
+
+  ctx.save();
+  ctx.translate(ex.x, ex.y);
+  ctx.globalAlpha = alpha;
+
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.4, "rgba(255,180,140,0.9)");
+  g.addColorStop(1, "rgba(255,120,120,0)");
+  ctx.fillStyle = g;
+
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
 
 function drawCenteredText(text, x, y) {
   ctx.fillStyle = "#f5f5f5";
