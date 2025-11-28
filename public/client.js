@@ -122,9 +122,9 @@ document.getElementById("btnGameBack").addEventListener("click", () => {
 function renderLeaderboard(list) {
   const ul = document.getElementById("rankingList");
   ul.innerHTML = "";
-  list.forEach((p) => {
+  list.forEach((p, idx) => {
     const li = document.createElement("li");
-    li.textContent = `${p.nickname} - ${p.score}`;
+    li.textContent = `${idx + 1}. ${p.nickname} - ${p.score}`;
     ul.appendChild(li);
   });
 }
@@ -190,7 +190,6 @@ const myHeartsEl = document.getElementById("myHearts");
 const enemyHeartsEl = document.getElementById("enemyHearts");
 const ammoFillEl = document.getElementById("ammoFill");
 const restartBtn = document.getElementById("restartBtn");
-const quickMatchBtn = document.getElementById("quickMatchBtn");
 
 let mySocketId = null;
 let myRole = null;
@@ -241,8 +240,8 @@ socket.on("state", (state) => {
 socket.on("game_over", ({ winner }) => {
   const isWinner = winner === mySocketId;
   const text = isWinner
-    ? "승리했습니다!\n\n다시 시작 버튼을 눌러 같은 상대와 재대전을 요청하세요."
-    : "패배했습니다...\n\n다시 시작 버튼을 눌러 같은 상대와 재대전을 요청하세요.";
+    ? "승리했습니다!\n\n다시 시작 버튼을 눌러 같은 상대와 재대전을 요청하거나,\n홈으로 돌아가 새 상대를 찾으세요."
+    : "패배했습니다...\n\n다시 시작 버튼을 눌러 같은 상대와 재대전을 요청하거나,\n홈으로 돌아가 새 상대를 찾으세요.";
   showOverlay(text);
   restartBtn.disabled = false;
 });
@@ -274,7 +273,7 @@ socket.on("restart", () => {
 socket.on("opponent_left", () => {
   // 상대가 나갔을 때: 이번 판 상태 정리
   showOverlay(
-    "상대가 게임을 떠났습니다.\n홈으로 돌아가거나 새 상대 찾기를 눌러주세요."
+    "상대가 게임을 떠났습니다.\n홈으로 돌아간 뒤 다시 게임을 시작해 주세요."
   );
   matchStatusEl.textContent = "상대가 떠났습니다.";
   restartBtn.disabled = true;
@@ -343,11 +342,6 @@ restartBtn.addEventListener("click", () => {
   restartBtn.disabled = true;
 });
 
-// 새 상대 찾기: 새로고침
-quickMatchBtn.addEventListener("click", () => {
-  window.location.reload();
-});
-
 // -------- 모바일/마우스 버튼을 키 입력으로 매핑 --------
 function registerButtonHold(buttonId, keyName) {
   const el = document.getElementById(buttonId);
@@ -387,12 +381,15 @@ registerButtonHold("btnLeft", "ArrowLeft");
 registerButtonHold("btnRight", "ArrowRight");
 registerButtonHold("btnFire", "Space");
 
-// 모바일에서 스크롤 방지 (게임 화면 터치 시)
+// 모바일에서 스크롤 방지 (캔버스/모바일 조작 버튼에서만)
 ["touchstart", "touchmove"].forEach((evtName) => {
   document.addEventListener(
     evtName,
     (e) => {
-      if (e.target.closest("#screen-game")) {
+      if (
+        e.target.closest("#gameCanvas") ||
+        e.target.closest("#mobileControls")
+      ) {
         e.preventDefault();
       }
     },
@@ -407,6 +404,10 @@ function gameLoop() {
   draw();
 }
 gameLoop();
+
+function isOverlayVisible() {
+  return !overlayEl.classList.contains("hidden");
+}
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -427,7 +428,14 @@ function draw() {
   }
 
   if (!currentState) {
-    drawCenteredText("게임을 시작하면 전장이 표시됩니다.", canvas.width / 2, canvas.height / 2);
+    // 오버레이가 떠 있을 때는 안내 텍스트를 캔버스에 따로 그리지 않음 → 텍스트 겹침 방지
+    if (!isOverlayVisible()) {
+      drawCenteredText(
+        "게임을 시작하면 전장이 표시됩니다.\n상대 플레이어를 기다리는 중입니다...",
+        canvas.width / 2,
+        canvas.height / 2
+      );
+    }
     return;
   }
 
@@ -463,19 +471,19 @@ function drawBullet(b) {
   ctx.translate(b.x, b.y);
 
   switch (b.skinId) {
-    case 1: // 와이드: 노란 둥근탄
+    case 1: // 와이드
       ctx.fillStyle = "#ffd24d";
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fill();
       break;
-    case 2: // 다트: 초록 탄
+    case 2: // 다트
       ctx.fillStyle = "#7bffb2";
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
       ctx.fill();
       break;
-    case 3: // 레이저: 세로로 긴 레이저
+    case 3: // 레이저
       ctx.fillStyle = "#f279ff";
       ctx.beginPath();
       if (ctx.roundRect) {
@@ -485,7 +493,7 @@ function drawBullet(b) {
       }
       ctx.fill();
       break;
-    default: // 기본
+    default:
       ctx.fillStyle = "#ffdf5e";
       ctx.beginPath();
       ctx.arc(0, 0, 4, 0, Math.PI * 2);
@@ -508,7 +516,7 @@ function drawFighter(p) {
   // 피격 무적일 때 깜빡임
   if (isHitInv) {
     const t = performance.now() * 0.02;
-    const alpha = 0.3 + (Math.sin(t) + 1) * 0.35; // 0.3~1.0
+    const alpha = 0.3 + (Math.sin(t) + 1) * 0.35;
     ctx.globalAlpha = alpha;
   }
 
@@ -647,7 +655,7 @@ function drawLaserShip(bodyColor, accentColor) {
   ctx.fillRect(-3, 20, 6, 10);
 }
 
-// 아이템 하트 (체력 하트와 동일 구조)
+// 아이템 하트
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
@@ -727,7 +735,7 @@ function drawExplosion(ex) {
 function drawCenteredText(text, x, y) {
   ctx.fillStyle = "#f5f5f5";
   ctx.font =
-    "20px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
+    "18px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(text, x, y);
