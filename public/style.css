@@ -350,3 +350,75 @@ body {
   white-space: pre-line;
   pointer-events: auto;
 }
+
+/* 모바일 전용 컨트롤: 기본은 숨김 */
+.mobile-only {
+  display: none;
+}
+
+/* 모바일 레이아웃 */
+@media (max-width: 768px) {
+  #screen-game {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #ui {
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto 12px;
+  }
+
+  #gameCanvas {
+    width: 100%;
+    height: auto;
+    max-width: 480px;
+    margin: 0 auto;
+  }
+
+  .mobile-only {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px 0;
+    gap: 12px;
+  }
+
+  #mobileControls button {
+    min-width: 50px;
+    min-height: 50px;
+    border-radius: 999px;
+    border: none;
+    background: #1d2748;
+    color: #e5e8ff;
+    font-size: 20px;
+    font-weight: 700;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  #mobileControls button:active {
+    background: #2f7bff;
+    color: #fff;
+  }
+
+  .mobile-move {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .mobile-move .middle-row {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .mobile-fire {
+    display: flex;
+    align-items: center;
+  }
+
+  #btnFire {
+    padding: 0 18px;
+  }
+}
