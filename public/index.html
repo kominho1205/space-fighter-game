@@ -84,25 +84,7 @@
           <span id="matchStatus">매칭 대기 중...</span>
         </div>
 
-        <div id="info">
-          <div>
-            <strong>조작법</strong><br />
-            방향키 ←↑↓→ : 이동<br />
-            스페이스 : 공격<br />
-          </div>
-          <div>
-            <strong>설명</strong><br />
-            탄약은 게이지 형식으로 자동 충전됩니다.<br />
-            하트 아이템: 목숨 +1 (최대 3개 또는 4개)<br />
-            방어막 아이템: 2초간 무적<br />
-            탄약 아이템: 탄약 게이지를 즉시 가득 채움<br />
-          </div>
-        </div>
-
-        <div id="rankInfo">
-          RANK SCORE: <span id="rankScore">0</span>
-        </div>
-
+        <!-- 하트 블록을 정보(#info)보다 위로 이동 -->
         <div id="heartsWrapper">
           <div class="heartsRow">
             <div class="heartsLabel">내 체력</div>
@@ -118,6 +100,26 @@
           <label>내 탄약 게이지</label>
           <div class="ammoBar">
             <div id="ammoFill" class="ammoFill"></div>
+          </div>
+        </div>
+
+        <div id="rankInfo">
+          RANK SCORE: <span id="rankScore">0</span>
+        </div>
+
+        <!-- PC용 설명(모바일에선 CSS로 숨김) -->
+        <div id="info">
+          <div>
+            <strong>조작법</strong><br />
+            방향키 ←↑↓→ : 이동<br />
+            스페이스 : 공격<br />
+          </div>
+          <div>
+            <strong>설명</strong><br />
+            탄약은 게이지 형식으로 자동 충전됩니다.<br />
+            하트 아이템: 목숨 +1 (최대 3개 또는 4개)<br />
+            방어막 아이템: 2초간 무적<br />
+            탄약 아이템: 탄약 게이지를 즉시 가득 채움<br />
           </div>
         </div>
 
