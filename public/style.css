@@ -49,6 +49,41 @@ body {
   font-size: 13px;
 }
 
+/* 스킨 선택 */
+#skinSelector {
+  margin-top: 4px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skinLabel {
+  color: #b8c1ff;
+}
+
+.skinButtons {
+  display: flex;
+  gap: 6px;
+}
+
+.skinBtn {
+  flex: 1;
+  border-radius: 8px;
+  border: 1px solid #3a4aa5;
+  background: #121739;
+  color: #d5ddff;
+  font-size: 12px;
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.skinBtn.active {
+  background: #2f7bff;
+  color: #fff;
+}
+
+/* 체력 표시 */
 #heartsWrapper {
   display: flex;
   flex-direction: column;
@@ -56,30 +91,28 @@ body {
   font-size: 14px;
 }
 
-/* ★ 새로 추가: 한 줄(라벨 + 하트)을 가로로 배치 */
 .heartsRow {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-/* ★ 새로 추가: "내 체력" / "상대 체력" 라벨 */
 .heartsLabel {
-  width: 72px;                /* 라벨 폭 고정 */
+  width: 72px;
   font-size: 13px;
-  color: #b8c1ff;             /* 살짝 밝은 파란색 계열 */
+  color: #b8c1ff;
 }
 
 .hearts {
   min-height: 24px;
 }
 
-/* 체력 하트 (이전 버전 유지, 간격만 충분히 띄운 상태면 OK) */
+/* 체력 하트 */
 .heart {
   display: inline-block;
   width: 18px;
   height: 18px;
-  margin-right: 14px; /* 겹치지 않을 정도로 넉넉하게 */
+  margin-right: 14px; /* 겹치지 않도록 넉넉히 */
   background: #ff4b69;
   position: relative;
   transform: rotate(-45deg);
@@ -105,6 +138,7 @@ body {
   top: 0;
 }
 
+/* 탄약 게이지 */
 #ammoWrapper {
   margin-top: 4px;
   font-size: 13px;
@@ -126,21 +160,41 @@ body {
   transition: width 0.1s linear;
 }
 
-#restartBtn {
-  margin-top: 6px;
+/* 버튼들 */
+#buttonsWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#restartBtn,
+#quickMatchBtn {
   padding: 8px 10px;
   border-radius: 8px;
   border: none;
-  background: #2f7bff;
-  color: #fff;
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
 }
 
+#restartBtn {
+  background: #2f7bff;
+  color: #fff;
+}
+
 #restartBtn:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+#quickMatchBtn {
+  background: #11192f;
+  color: #c6d1ff;
+  border: 1px solid #374377;
+}
+
+#quickMatchBtn:hover {
+  background: #18203b;
 }
 
 #gameCanvas {
@@ -150,17 +204,16 @@ body {
   background: radial-gradient(circle at top, #1a2454 0, #050814 55%);
 }
 
-/* 오버레이: 박스/배경 제거, 텍스트만 중앙에 표시 */
+/* 오버레이: 텍스트만 표시 */
 #overlay {
   position: fixed;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  /* 배경 어둡게 하는 효과 제거 */
   background: transparent;
   z-index: 10;
-  pointer-events: none; /* 뒤에 버튼 클릭 가능 */
+  pointer-events: none;
 }
 
 #overlay.hidden {
@@ -168,14 +221,13 @@ body {
 }
 
 #overlayText {
-  /* 박스 제거, 텍스트만 */
   background: transparent;
   border: none;
   box-shadow: none;
   padding: 0;
   font-size: 20px;
   font-weight: 600;
-  color: #ffe66d; /* 잘 보이는 색 */
+  color: #ffe66d;
   text-align: center;
   white-space: pre-line;
   pointer-events: auto;
