@@ -213,6 +213,12 @@ body {
   color: #b8c1ff;
 }
 
+/* 내 닉네임 라벨은 색 강조 */
+#pcMyLabel,
+#mobileMyLabel {
+  color: #ffe66d;
+}
+
 .hearts {
   min-height: 24px;
 }
