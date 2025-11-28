@@ -617,8 +617,15 @@ io.on("connection", (socket) => {
   });
 
   socket.on("leave_match", () => {
-    leaveCurrentGame(socket, { countAsLose: true });
-  });
+  // 매칭 대기열에 있을 경우 AI 타이머 제거
+  if (waitingPlayer && waitingPlayer.socket.id === socket.id) {
+    clearTimeout(waitingPlayer.timeout);
+    waitingPlayer = null;
+  }
+
+  // 이미 게임에 들어가 있었다면 패배 처리 후 나가기
+  leaveCurrentGame(socket, { countAsLose: true });
+});
 
   socket.on("move", (m) => {
     const game = findGameBySocketId(socket.id);
