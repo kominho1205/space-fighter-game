@@ -10,11 +10,14 @@ const myHeartsEl = document.getElementById("myHearts");
 const enemyHeartsEl = document.getElementById("enemyHearts");
 const ammoFillEl = document.getElementById("ammoFill");
 const restartBtn = document.getElementById("restartBtn");
+const quickMatchBtn = document.getElementById("quickMatchBtn");
+const skinButtons = Array.from(document.querySelectorAll(".skinBtn"));
 
 let mySocketId = null;
 let myRole = null; // "bottom" or "top"
 let currentState = null;
 let lastStateTime = 0;
+let localSkinId = 0;
 
 let keys = {
   ArrowUp: false,
@@ -32,7 +35,29 @@ let restartStatus = {
   other: false
 };
 
-// Request matchmaking
+// 스킨 버튼 UI 업데이트
+function setActiveSkinButton(id) {
+  skinButtons.forEach((btn) => {
+    btn.classList.toggle("active", Number(btn.dataset.skin) === id);
+  });
+}
+
+// 스킨 선택 클릭
+skinButtons.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const skinId = Number(btn.dataset.skin);
+    localSkinId = skinId;
+    setActiveSkinButton(skinId);
+    socket.emit("set_skin", { skinId });
+  });
+});
+
+// 빠른 재매칭: 새로고침으로 새 상대 찾기
+quickMatchBtn.addEventListener("click", () => {
+  window.location.reload();
+});
+
+// 매칭 요청
 socket.emit("find_match");
 
 socket.on("connect", () => {
@@ -100,7 +125,7 @@ socket.on("opponent_left", () => {
   restartBtn.disabled = true;
 });
 
-// Input handling
+// 입력 처리
 window.addEventListener("keydown", (e) => {
   if (e.code === "Space") e.preventDefault();
 
@@ -160,7 +185,8 @@ restartBtn.addEventListener("click", () => {
   restartBtn.disabled = true;
 });
 
-// Rendering
+// ---------- 렌더링 루프 ----------
+
 function gameLoop() {
   requestAnimationFrame(gameLoop);
   draw();
@@ -169,14 +195,14 @@ function gameLoop() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Background
+  // 배경
   const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
   g.addColorStop(0, "#0e1635");
   g.addColorStop(1, "#050814");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Starfield
+  // 별
   ctx.fillStyle = "rgba(255,255,255,0.2)";
   for (let i = 0; i < 40; i++) {
     const x = (i * 123) % canvas.width;
@@ -189,7 +215,7 @@ function draw() {
     return;
   }
 
-  // Items
+  // 아이템
   currentState.items.forEach((item) => {
     if (item.type === "heart") {
       drawHeartItem(item.x, item.y);
@@ -200,7 +226,12 @@ function draw() {
     }
   });
 
-  // Bullets
+  // 폭발 이펙트
+  if (currentState.explosions) {
+    currentState.explosions.forEach((ex) => drawExplosion(ex));
+  }
+
+  // 총알
   ctx.fillStyle = "#ffdf5e";
   currentState.bullets.forEach((b) => {
     ctx.beginPath();
@@ -208,16 +239,19 @@ function draw() {
     ctx.fill();
   });
 
-  // Players
+  // 전투기
   currentState.players.forEach((p) => {
     drawFighter(p);
   });
 }
 
+// 스킨별 전투기 그리기
 function drawFighter(p) {
   const isMe = p.socketId === mySocketId;
-  const colorBody = isMe ? "#4be1ff" : "#ff5e7a";
-  const colorAccent = isMe ? "#c4f4ff" : "#ffd2dd";
+
+  // 색은 나/상대 기준으로 구분
+  const bodyColor = isMe ? "#4be1ff" : "#ff5e7a";
+  const accentColor = isMe ? "#c4f4ff" : "#ffd2dd";
 
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -226,7 +260,7 @@ function drawFighter(p) {
     ctx.rotate(Math.PI);
   }
 
-  // Shield
+  // 방어막
   if (p.shieldActive) {
     ctx.beginPath();
     ctx.arc(0, 0, 28, 0, Math.PI * 2);
@@ -237,8 +271,28 @@ function drawFighter(p) {
     ctx.setLineDash([]);
   }
 
-  // Body
-  ctx.fillStyle = colorBody;
+  const skinId = p.skinId ?? 0;
+
+  // 스킨별 기체 형태
+  switch (skinId) {
+    case 1: // 와이드
+      drawWideShip(bodyColor, accentColor);
+      break;
+    case 2: // 다트
+      drawDartShip(bodyColor, accentColor);
+      break;
+    default: // 기본
+      drawDefaultShip(bodyColor, accentColor);
+      break;
+  }
+
+  ctx.restore();
+}
+
+// 기본 스킨
+function drawDefaultShip(bodyColor, accentColor) {
+  // 몸체
+  ctx.fillStyle = bodyColor;
   ctx.beginPath();
   ctx.moveTo(0, -22);
   ctx.lineTo(18, 16);
@@ -246,17 +300,17 @@ function drawFighter(p) {
   ctx.closePath();
   ctx.fill();
 
-  // Cockpit
-  ctx.fillStyle = colorAccent;
+  // 조종석
+  ctx.fillStyle = accentColor;
   ctx.beginPath();
   ctx.ellipse(0, -6, 7, 9, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // Wings
-  ctx.fillStyle = colorBody;
+  // 날개
+  ctx.fillStyle = bodyColor;
   ctx.fillRect(-26, 4, 52, 6);
 
-  // Engine glow
+  // 엔진 화염
   ctx.fillStyle = "rgba(255, 209, 138, 0.85)";
   ctx.beginPath();
   ctx.moveTo(-10, 16);
@@ -264,33 +318,77 @@ function drawFighter(p) {
   ctx.lineTo(10, 16);
   ctx.closePath();
   ctx.fill();
-
-  ctx.restore();
 }
 
-// 아이템 하트: 체력 하트와 같은 구조/각도
+// 와이드 스킨
+function drawWideShip(bodyColor, accentColor) {
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -20);
+  ctx.lineTo(26, 10);
+  ctx.lineTo(0, 18);
+  ctx.lineTo(-26, 10);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -4, 8, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 209, 138, 0.9)";
+  ctx.beginPath();
+  ctx.moveTo(-6, 18);
+  ctx.lineTo(0, 30);
+  ctx.lineTo(6, 18);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// 다트 스킨
+function drawDartShip(bodyColor, accentColor) {
+  ctx.fillStyle = bodyColor;
+  ctx.beginPath();
+  ctx.moveTo(0, -24);
+  ctx.lineTo(14, 18);
+  ctx.lineTo(0, 12);
+  ctx.lineTo(-14, 18);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = accentColor;
+  ctx.beginPath();
+  ctx.ellipse(0, -8, 6, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(-12, 4, 24, 4);
+
+  ctx.fillStyle = "rgba(255, 209, 138, 0.9)";
+  ctx.beginPath();
+  ctx.moveTo(-5, 18);
+  ctx.lineTo(0, 30);
+  ctx.lineTo(5, 18);
+  ctx.closePath();
+  ctx.fill();
+}
+
+// 아이템 하트: 체력 하트와 동일 구조/각도
 function drawHeartItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
-
-  // 체력 하트와 동일하게 -45도 회전
   ctx.rotate(-Math.PI / 4);
   ctx.fillStyle = "#ff4b69";
 
-  // 중앙 정사각형 (18 x 18)
   ctx.fillRect(-9, -9, 18, 18);
 
-  // 왼쪽 위 원 (CSS의 ::before와 대응)
   ctx.beginPath();
   ctx.arc(-9, 0, 9, 0, Math.PI * 2);
-
-  // 오른쪽 위 원 (CSS의 ::after와 대응)
   ctx.arc(0, -9, 9, 0, Math.PI * 2);
-
   ctx.fill();
+
   ctx.restore();
 }
-
 
 function drawShieldItem(x, y) {
   ctx.save();
@@ -308,7 +406,7 @@ function drawShieldItem(x, y) {
   ctx.restore();
 }
 
-// 탄약 아이템: 탄약 상자
+// 탄약 아이템
 function drawAmmoItem(x, y) {
   ctx.save();
   ctx.translate(x, y);
@@ -330,6 +428,29 @@ function drawAmmoItem(x, y) {
   ctx.restore();
 }
 
+// 폭발 이펙트
+function drawExplosion(ex) {
+  const age = Math.min(ex.age, 1);
+  const alpha = 1 - age;
+  const radius = 10 + 10 * (1 - age);
+
+  ctx.save();
+  ctx.translate(ex.x, ex.y);
+  ctx.globalAlpha = alpha;
+
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, radius);
+  g.addColorStop(0, "rgba(255,255,255,1)");
+  g.addColorStop(0.4, "rgba(255,180,140,0.9)");
+  g.addColorStop(1, "rgba(255,120,120,0)");
+  ctx.fillStyle = g;
+
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
 function drawCenteredText(text, x, y) {
   ctx.fillStyle = "#f5f5f5";
   ctx.font = "20px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
@@ -338,10 +459,16 @@ function drawCenteredText(text, x, y) {
   ctx.fillText(text, x, y);
 }
 
+// UI 업데이트
 function updateUI() {
   if (!currentState) return;
   const me = currentState.players.find((p) => p.socketId === mySocketId);
   const enemy = currentState.players.find((p) => p.socketId !== mySocketId);
+
+  if (me && typeof me.skinId === "number") {
+    localSkinId = me.skinId;
+    setActiveSkinButton(localSkinId);
+  }
 
   renderHearts(myHeartsEl, me ? me.hp : 0);
   renderHearts(enemyHeartsEl, enemy ? enemy.hp : 0);
