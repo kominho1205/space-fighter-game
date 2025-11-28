@@ -392,8 +392,8 @@ let joystickActive = false;
 let joystickPointerId = null;
 
 if (joystickBase && joystickStick) {
-  const maxRadius = 40;
-  const deadZone = 0.25;
+  const maxRadius = 40;    // 조이스틱 최대 이동 반경(px)
+  const deadZone = 0.25;   // 데드존 (비율)
 
   const updateFromEvent = (e) => {
     const rect = joystickBase.getBoundingClientRect();
@@ -403,20 +403,22 @@ if (joystickBase && joystickStick) {
     const dx = e.clientX - cx;
     const dy = e.clientY - cy;
     const dist = Math.hypot(dx, dy);
+
     const clamped = Math.min(dist, maxRadius);
     const nx = dist > 0 ? dx / dist : 0;
     const ny = dist > 0 ? dy / dist : 0;
 
+    // 항상 베이스의 중심(50%, 50%) 기준으로 움직이게
     joystickStick.style.left = "50%";
     joystickStick.style.top = "50%";
-    joystickStick.style.transform = `translate(${nx * clamped}px, ${
-      ny * clamped
-    }px)`;
+    joystickStick.style.transform =
+      `translate(-50%, -50%) translate(${nx * clamped}px, ${ny * clamped}px)`;
 
-    keys.ArrowLeft = nx < -deadZone;
-    keys.ArrowRight = nx > deadZone;
-    keys.ArrowUp = ny < -deadZone;
-    keys.ArrowDown = ny > deadZone;
+    // 방향 입력
+    keys.ArrowLeft  = nx < -deadZone;
+    keys.ArrowRight = nx >  deadZone;
+    keys.ArrowUp    = ny < -deadZone;
+    keys.ArrowDown  = ny >  deadZone;
 
     sendMoveInput();
   };
