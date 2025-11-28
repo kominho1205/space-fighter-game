@@ -65,7 +65,7 @@ body {
   display: inline-block;
   width: 18px;
   height: 18px;
-  margin-right: 8px; /* 하트 사이 간격 더 띄우기 */
+  margin-right: 14px; /* 하트 사이 간격 더 띄우기 */
   background: #ff4b69;
   position: relative;
   transform: rotate(-45deg);
