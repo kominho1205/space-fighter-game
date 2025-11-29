@@ -1,7 +1,7 @@
 // ---------------- 로그인/화면 제어 ----------------
 
 const screens = {
-  nickname: document.getElementById("screen-nickname"), // 로그인 화면
+  nickname: document.getElementById("screen-nickname"),
   home: document.getElementById("screen-home"),
   ranking: document.getElementById("screen-ranking"),
   skins: document.getElementById("screen-skins"),
@@ -19,20 +19,19 @@ function showScreen(name) {
 let latestProfile = null;
 let currentAccount = null;
 
-// 닉네임+비밀번호 → 항상 같은 userId를 만드는 함수
-const LOGIN_KEY = "spacezAccountV2";
+// 같은 닉네임+비밀번호면 항상 같은 userId
+const ACCOUNT_KEY = "spacezAccountV2";
+let userId = null;
+let nickname = null;
 
-function makeUserIdFromLogin(nickname, password) {
-  const raw = encodeURIComponent(nickname + "::" + password);
+function makeUserIdFromLogin(nick, pw) {
+  const raw = encodeURIComponent(nick + "::" + pw);
   let h = 0;
   for (let i = 0; i < raw.length; i++) {
     h = (h * 31 + raw.charCodeAt(i)) | 0;
   }
   return "spacez_" + (h >>> 0).toString(16);
 }
-
-let userId = null;
-let nickname = null;
 
 // ---------------- 소리 시스템 ----------------
 
@@ -109,7 +108,7 @@ document.addEventListener(
 
 const socket = io();
 
-// 프로필 받았을 때 UI 갱신
+// 프로필 수신 시 UI 갱신
 socket.on("profile", (p) => {
   latestProfile = p;
 
@@ -126,9 +125,28 @@ socket.on("profile", (p) => {
   renderSkinList();
 });
 
-// 자동 로그인 시도
+// 실제 로그인 처리 (서버에 identify만 보냄)
+function doLogin(nick, pw, { auto = false } = {}) {
+  nickname = nick;
+  userId = makeUserIdFromLogin(nick, pw);
+  currentAccount = { nickname: nick };
+
+  // 자동 로그인 저장
+  localStorage.setItem(
+    ACCOUNT_KEY,
+    JSON.stringify({ nickname: nick, password: pw })
+  );
+
+  // 서버에 계정 식별 요청
+  socket.emit("identify", { userId, nickname });
+
+  // 서버 응답 기다리지 말고 바로 홈으로
+  showScreen("home");
+}
+
+// 자동 로그인
 function tryAutoLogin() {
-  const saved = localStorage.getItem(LOGIN_KEY);
+  const saved = localStorage.getItem(ACCOUNT_KEY);
   if (!saved) {
     showScreen("nickname");
     return;
@@ -137,68 +155,51 @@ function tryAutoLogin() {
   try {
     data = JSON.parse(saved);
   } catch {
-    localStorage.removeItem(LOGIN_KEY);
+    localStorage.removeItem(ACCOUNT_KEY);
     showScreen("nickname");
     return;
   }
   if (!data.nickname || !data.password) {
-    localStorage.removeItem(LOGIN_KEY);
+    localStorage.removeItem(ACCOUNT_KEY);
     showScreen("nickname");
     return;
   }
-
-  nickname = data.nickname;
-  userId = makeUserIdFromLogin(data.nickname, data.password);
-  currentAccount = { nickname };
-
-  socket.emit("identify", { userId, nickname });
-  showScreen("home");
+  doLogin(data.nickname, data.password, { auto: true });
 }
 
-// 로그인 버튼 클릭
+// 소켓 연결되면 자동 로그인 시도
+socket.on("connect", () => {
+  if (userId && nickname) {
+    // 이미 로그인 정보 있으면 재식별
+    socket.emit("identify", { userId, nickname });
+    showScreen("home");
+  } else {
+    tryAutoLogin();
+  }
+});
+
+// 닉네임/비밀번호 입력 버튼
 document
   .getElementById("nicknameConfirmBtn")
   .addEventListener("click", () => {
     const nick = document.getElementById("nicknameInput").value.trim();
     const pw = document.getElementById("passwordInput").value.trim();
     if (!nick || !pw) return;
-
-    nickname = nick;
-    userId = makeUserIdFromLogin(nick, pw);
-    currentAccount = { nickname: nick };
-
-    // 같은 기기 자동 로그인을 위해 저장
-    localStorage.setItem(
-      LOGIN_KEY,
-      JSON.stringify({ nickname: nick, password: pw })
-    );
-
-    // 서버에 계정 식별 요청
-    socket.emit("identify", { userId, nickname });
-    showScreen("home");
+    doLogin(nick, pw, { auto: false });
   });
 
-// 로그아웃
-document.getElementById("btnLogout").addEventListener("click", () => {
-  localStorage.removeItem(LOGIN_KEY);
-  currentAccount = null;
-  latestProfile = null;
-  userId = null;
-  nickname = null;
-  showScreen("nickname");
-});
-
-// 소켓 연결되면 자동 로그인 시도
-let mySocketId = null;
-socket.on("connect", () => {
-  mySocketId = socket.id;
-  // 이미 userId/닉네임이 있으면 재식별, 없으면 자동 로그인 시도
-  if (userId && nickname) {
-    socket.emit("identify", { userId, nickname });
-  } else {
-    tryAutoLogin();
-  }
-});
+// 로그아웃 버튼 (없을 수도 있으니 방어 코드)
+const logoutBtn = document.getElementById("btnLogout");
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", () => {
+    localStorage.removeItem(ACCOUNT_KEY);
+    currentAccount = null;
+    latestProfile = null;
+    userId = null;
+    nickname = null;
+    showScreen("nickname");
+  });
+}
 
 // 홈 화면
 document.getElementById("btnPlay").addEventListener("click", () => {
@@ -238,7 +239,7 @@ document.getElementById("btnGameBack").addEventListener("click", () => {
   showScreen("home");
 });
 
-// 랭킹 렌더링 (ol 자체 번호 사용)
+// 랭킹 렌더링
 function renderLeaderboard(list) {
   const ul = document.getElementById("rankingList");
   ul.innerHTML = "";
@@ -248,7 +249,6 @@ function renderLeaderboard(list) {
     ul.appendChild(li);
   });
 }
-
 
 // ---------------- 스킨 ----------------
 
