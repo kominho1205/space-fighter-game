@@ -746,19 +746,6 @@ function isOverlayVisible() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  g.addColorStop(0, "#0e1635");
-  g.addColorStop(1, "#050814");
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "rgba(255,255,255,0.2)";
-  for (let i = 0; i < 40; i++) {
-    const x = (i * 123) % canvas.width;
-    const y = (i * 57 + Math.floor(performance.now() * 0.02)) % canvas.height;
-    ctx.fillRect(x, y, 2, 2);
-  }
-
   if (!currentState) {
     if (!isOverlayVisible()) {
       drawCenteredText(
