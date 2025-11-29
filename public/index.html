@@ -1,174 +1,157 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <title>Space Z - 온라인 전투기 대전</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="stylesheet" href="style.css" />
+  <meta charset="UTF-8" />
+  <title>Space Z - 온라인 전투기 대전</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
 
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7030067595403780"
-     crossorigin="anonymous"></script>
+  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7030067595403780"
+     crossorigin="anonymous"></script>
 
-  
+  
 </head>
 <body>
-  <canvas id="bgCanvas"></canvas>   <!-- ★ 여기에 추가 -->
-  <div id="app">
+  <canvas id="bgCanvas"></canvas>     <div id="app">
 
-    <!-- 1. 로그인 화면 (닉네임 + 비밀번호) -->
-    <div id="screen-nickname" class="screen">
-      <div class="panel">
-        <h1>Space Z</h1>
-        <p class="sub">사용할 닉네임과 비밀번호를 입력하세요.<br/>처음 입력하면 계정이 생성됩니다.</p>
-        <input id="nicknameInput" maxlength="16" placeholder="닉네임 (최대 16자)" />
-        <input id="passwordInput" type="password" maxlength="32" placeholder="비밀번호" />
-        <button id="nicknameConfirmBtn">로그인 / 계정 만들기</button>
-      </div>
-    </div>
+        <div id="screen-nickname" class="screen">
+      <div class="panel">
+        <h1>Space Z</h1>
+        <p class="sub">사용할 닉네임과 비밀번호를 입력하세요.<br/>처음 입력하면 계정이 생성됩니다.</p>
+        <input id="nicknameInput" maxlength="16" placeholder="닉네임 (최대 16자)" />
+        <input id="passwordInput" type="password" maxlength="32" placeholder="비밀번호" />
+        <button id="nicknameConfirmBtn">로그인 / 계정 만들기</button>
+      </div>
+    </div>
 
-    <!-- 2. 홈 화면 -->
-    <div id="screen-home" class="screen hidden">
-      <div class="panel">
-       <!-- 메인 로고 -->
-    <div class="main-logo-wrap">
-      <img src="spacez-logo.png" alt="Space Z" class="main-logo" />
-    </div>
-        <div class="homeRow">
-          <span class="label">닉네임</span>
-          <span id="homeNickname">-</span>
-        </div>
-        <div class="homeRow">
-          <span class="label">RANK SCORE</span>
-          <span id="homeScore">0</span>
-        </div>
+        <div id="screen-home" class="screen hidden">
+      <div class="panel">
+           <div class="main-logo-wrap">
+      <img src="spacez-logo.png" alt="Space Z" class="main-logo" />
+    </div>
+        <div class="homeRow">
+          <span class="label">닉네임</span>
+          <span id="homeNickname">-</span>
+        </div>
+        <div class="homeRow">
+          <span class="label">RANK SCORE</span>
+          <span id="homeScore">0</span>
+        </div>
 
-        <button id="btnPlay" class="primary">게임 시작</button>
-        <button id="btnSkins">스킨 선택</button>
-        <button id="btnRanking">랭킹 보기</button>
-        <button id="btnLogout">로그아웃</button>
-      </div>
-    </div>
+        <button id="btnPlay" class="primary">게임 시작</button>
+        <button id="btnSkins">스킨 선택</button>
+        <button id="btnRanking">랭킹 보기</button>
+        <button id="btnLogout">로그아웃</button>
+      </div>
+    </div>
 
-    <!-- 3. 랭킹 화면 -->
-    <div id="screen-ranking" class="screen hidden">
-      <div class="panel">
-        <h1>랭킹</h1>
-        <ol id="rankingList"></ol>
-        <button id="btnRankingBack">뒤로</button>
-      </div>
-    </div>
+        <div id="screen-ranking" class="screen hidden">
+      <div class="panel">
+        <h1>랭킹</h1>
+        <ol id="rankingList"></ol>
+        <button id="btnRankingBack">뒤로</button>
+        
+      </div>
+    </div>
 
-    <!-- 4. 스킨 선택 화면 -->
-    <div id="screen-skins" class="screen hidden">
-      <div class="panel">
-        <h1>스킨 선택</h1>
-        <div class="homeRow">
-          <span class="label">현재 점수</span>
-          <span id="skinsScore">0</span>
-        </div>
-        <div id="skinList"></div>
-        <button id="btnSkinsBack">뒤로</button>
-      </div>
-    </div>
+        <div id="screen-skins" class="screen hidden">
+      <div class="panel">
+        <h1>스킨 선택</h1>
+        <div class="homeRow">
+          <span class="label">현재 점수</span>
+          <span id="skinsScore">0</span>
+        </div>
+        <div id="skinList"></div>
+        <button id="btnSkinsBack">뒤로</button>
+      </div>
+    </div>
 
-    <!-- 5. 게임 플레이 화면 -->
-    <div id="screen-game" class="screen hidden">
+        <div id="screen-game" class="screen hidden">
 
-      <!-- 모바일 최상단: 체력 -->
-      <div id="mobileHeartsWrapper" class="mobile-only mobile-hearts">
-        <div class="heartsRow">
-          <div class="heartsLabel" id="mobileMyLabel">내 체력</div>
-          <div id="mobileMyHearts" class="hearts"></div>
-        </div>
-        <div class="heartsRow">
-          <div class="heartsLabel" id="mobileEnemyLabel">상대 체력</div>
-          <div id="mobileEnemyHearts" class="hearts"></div>
-        </div>
-      </div>
+            <div id="mobileHeartsWrapper" class="mobile-only mobile-hearts">
+        <div class="heartsRow">
+          <div class="heartsLabel" id="mobileMyLabel">...</div>           <div id="mobileMyHearts" class="hearts"></div>
+        </div>
+        <div class="heartsRow">
+          <div class="heartsLabel" id="mobileEnemyLabel">...</div>           <div id="mobileEnemyHearts" class="hearts"></div>
+        </div>
+      </div>
 
-      <!-- 전투 화면 -->
-      <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
 
-      <!-- 모바일 탄약 게이지 -->
-      <div id="mobileAmmoWrapper" class="mobile-only mobile-ammo">
-        <label>내 탄약 게이지</label>
-        <div class="ammoBar">
-          <div id="mobileAmmoFill" class="ammoFill"></div>
-        </div>
-      </div>
+            <div id="mobileAmmoWrapper" class="mobile-only mobile-ammo">
+        <label>내 탄약 게이지</label>
+        <div class="ammoBar">
+          <div id="mobileAmmoFill" class="ammoFill"></div>
+        </div>
+      </div>
 
-      <!-- 모바일 조이스틱 + FIRE -->
-      <div id="mobileControls" class="mobile-only mobile-controls">
-        <div id="joystickWrapper">
-          <div id="joystickBase">
-            <div id="joystickStick"></div>
-          </div>
-        </div>
-        <div class="mobile-fire">
-          <button id="btnFire">FIRE</button>
-        </div>
-      </div>
+            <div id="mobileControls" class="mobile-only mobile-controls">
+        <div id="joystickWrapper">
+          <div id="joystickBase">
+            <div id="joystickStick"></div>
+          </div>
+        </div>
+        <div class="mobile-fire">
+          <button id="btnFire">FIRE</button>
+        </div>
+      </div>
 
-      <!-- 공통 UI (PC에선 옆, 모바일에선 아래) -->
-      <div id="ui">
-        <h1>Space Z</h1>
-        <div id="status">
-          <span id="matchStatus">매칭 대기 중...</span>
-        </div>
+            <div id="ui">
+        <h1>Space Z</h1>
+        <div id="status">
+          <span id="matchStatus">매칭 대기 중...</span>
+        </div>
 
-        <!-- PC 체력 -->
-        <div id="heartsWrapper">
-          <div class="heartsRow">
-            <div class="heartsLabel" id="pcMyLabel">내 체력</div>
-            <div id="myHearts" class="hearts"></div>
-          </div>
-          <div class="heartsRow">
-            <div class="heartsLabel" id="pcEnemyLabel">상대 체력</div>
-            <div id="enemyHearts" class="hearts"></div>
-          </div>
-        </div>
+                <div id="heartsWrapper">
+          <div class="heartsRow">
+            <div class="heartsLabel" id="pcMyLabel">...</div>             <div id="myHearts" class="hearts"></div>
+          </div>
+          <div class="heartsRow">
+            <div class="heartsLabel" id="pcEnemyLabel">...</div>             <div id="enemyHearts" class="hearts"></div>
+          </div>
+        </div>
 
-        <!-- PC 탄약 -->
-        <div id="ammoWrapper">
-          <label>내 탄약 게이지</label>
-          <div class="ammoBar">
-            <div id="ammoFill" class="ammoFill"></div>
-          </div>
-        </div>
+                <div id="ammoWrapper">
+          <label>내 탄약 게이지</label>
+          <div class="ammoBar">
+            <div id="ammoFill" class="ammoFill"></div>
+          </div>
+        </div>
 
-        <div id="rankInfo">
-          RANK SCORE: <span id="rankScore">0</span>
-        </div>
+        <div id="rankInfo">
+          RANK SCORE: <span id="rankScore">0</span>
+        </div>
 
-        <!-- PC 설명 (모바일에선 숨김) -->
-        <div id="info">
-          <div>
-            <strong>조작법</strong><br />
-            방향키 ←↑↓→ : 이동<br />
-            스페이스 : 공격<br />
-          </div>
-          <div>
-            <strong>설명</strong><br />
-            탄약은 게이지 형식으로 자동 충전됩니다.<br />
-            하트 아이템: 목숨 +1 (최대 3개 또는 4개)<br />
-            방어막 아이템: 2초간 무적<br />
-            탄약 아이템: 탄약 게이지를 즉시 가득 채움<br />
-          </div>
-        </div>
+                <div id="info">
+          <div>
+            <strong>조작법</strong><br />
+            방향키 ←↑↓→ : 이동<br />
+            스페이스 : 공격<br />
+          </div>
+          <div>
+            <strong>설명</strong><br />
+            탄약은 게이지 형식으로 자동 충전됩니다.<br />
+            하트 아이템: 목숨 +1 (최대 3개 또는 4개)<br />
+            방어막 아이템: 2초간 무적<br />
+            탄약 아이템: 탄약 게이지를 즉시 가득 채움<br />
+          </div>
+        </div>
 
-        <div id="buttonsWrapper">
-          <button id="restartBtn" disabled>다시 시작 (같은 상대)</button>
-          <button id="btnGameBack">홈으로</button>
-        </div>
-      </div>
+        <div id="buttonsWrapper">
+          <button id="restartBtn" disabled>다시 시작 (같은 상대)</button>
+          <button id="btnGameBack">홈으로</button>
+        </div>
+        
+      </div>
 
-      <div id="overlay" class="hidden">
-        <div id="overlayText"></div>
-      </div>
-    </div>
-  </div>
+      <div id="overlay" class="hidden">
+        <div id="overlayText"></div>
+      </div>
+    </div>
+  </div>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="client.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
 </body>
 </html>
