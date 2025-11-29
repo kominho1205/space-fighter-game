@@ -565,6 +565,7 @@ function broadcastState(game) {
     countdown: game.countdown,
     players: game.players.map((p) => ({
       socketId: p.socketId,
+      nickname: p.nickname,        // ★ 닉네임 추가
       role: p.role,
       x: p.x,
       y: p.y,
