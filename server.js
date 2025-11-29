@@ -1,4 +1,3 @@
-// server.js (수정됨)
 const path = require("path");
 const express = require("express");
 const http = require("http");
@@ -11,6 +10,15 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
+// ---------- 스킨 데이터 정의 (클라이언트와 동일) ----------
+
+const SKIN_DATA = [
+    { id: 0, name: "기본", requiredScore: 0, desc: "기본 전투기 (HP 3, 보통 속도)" },
+    { id: 1, name: "와이드", requiredScore: 200, desc: "HP 4, 조금 느림" },
+    { id: 2, name: "다트", requiredScore: 400, desc: "HP 3, 조금 더 빠름" },
+    { id: 3, name: "레이저", requiredScore: 700, desc: "HP 3, 긴 레이저 탄" }
+];
+
 // ---------- PostgreSQL 연결 ----------
 
 const pool = new Pool({
@@ -20,6 +28,39 @@ const pool = new Pool({
 
 // 메모리 캐시 (동일 구조 유지)
 let users = new Map();
+
+/**
+ * 사용자의 현재 점수를 기반으로 잠금 해제해야 하는 스킨이 있는지 확인합니다.
+ * @param {object} user - 사용자 프로필 객체
+ * @returns {object} - 잠금 해제된 스킨이 추가된 사용자 프로필 객체
+ */
+function checkAndUnlockSkins(user) {
+    let changed = false;
+    const currentScore = user.score || 0;
+    const unlocked = new Set(user.unlockedSkins || []);
+    
+    SKIN_DATA.forEach(skin => {
+        // 요구 점수를 충족했고, 아직 잠금 해제되지 않았다면
+        if (currentScore >= skin.requiredScore && !unlocked.has(skin.id)) {
+            unlocked.add(skin.id);
+            changed = true;
+            console.log(`[${user.nickname}] 스킨 ID ${skin.id} (${skin.name})를 잠금 해제했습니다.`);
+        }
+    });
+
+    if (changed) {
+        // Set을 다시 배열로 변환하여 저장
+        user.unlockedSkins = Array.from(unlocked).map(v => Number(v));
+    }
+    
+    // 기본 스킨 (ID 0)은 항상 포함
+    if (!user.unlockedSkins.includes(0)) {
+        user.unlockedSkins.push(0);
+    }
+
+    return user;
+}
+
 
 async function loadUserFromDB(userId) {
     const res = await pool.query(
@@ -33,6 +74,7 @@ async function loadUserFromDB(userId) {
         userId: row.user_id,
         nickname: row.nickname,
         score: row.score,
+        // DB에서 불러온 후 숫자로 변환
         unlockedSkins: (row.unlocked_skins || []).map((v) => Number(v)),
         preferredSkin: row.preferred_skin
     };
@@ -46,16 +88,20 @@ async function checkNicknameAvailability(nickname) {
     return res.rowCount === 0; // 사용 가능하면 true
 }
 
+// ★ 스킨 잠금 해제 로직 추가: 저장 전에 스킨 상태를 확인 및 업데이트
 async function saveUserToDB(u) {
+    // 💡 저장 직전에 스킨 잠금 해제 확인 및 업데이트
+    const updatedUser = checkAndUnlockSkins(u);
+
     await pool.query(
         `INSERT INTO users (user_id, nickname, score, unlocked_skins, preferred_skin)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (user_id)
-       DO UPDATE SET nickname = EXCLUDED.nickname,
-                       score = EXCLUDED.score,
-                       unlocked_skins = EXCLUDED.unlocked_skins,
-                       preferred_skin = EXCLUDED.preferred_skin`,
-        [u.userId, u.nickname, u.score, u.unlockedSkins, u.preferredSkin]
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (user_id)
+        DO UPDATE SET nickname = EXCLUDED.nickname,
+                        score = EXCLUDED.score,
+                        unlocked_skins = EXCLUDED.unlocked_skins,
+                        preferred_skin = EXCLUDED.preferred_skin`,
+        [updatedUser.userId, updatedUser.nickname, updatedUser.score, updatedUser.unlockedSkins, updatedUser.preferredSkin]
     );
 }
 
@@ -82,14 +128,12 @@ async function getOrCreateUser(userId, nickname) {
         }
     }
     
-    // 기본 스킨 체크 (ID 0)
-    if (!u.unlockedSkins.includes(0)) {
-        u.unlockedSkins.push(0);
-    }
-
+    // 💡 메모리 캐시에 저장되기 전에 스킨 잠금 해제 확인 (점수 변동이 없을 수도 있지만 안전 조치)
+    u = checkAndUnlockSkins(u);
+    
     // DB에 저장
     if (isNew || nickname) {
-        await saveUserToDB(u);
+        await saveUserToDB(u); // saveUserToDB 내부에서 한 번 더 checkAndUnlockSkins 실행됨
     }
     
     users.set(userId, u);
@@ -168,8 +212,10 @@ function makeNewGame(matchId, players, options) {
     players.forEach((p) => {
         const isBottom = p.role === "bottom";
         let hp = 3;
+        
+        // 💡 스킨에 따른 초기 HP 설정 (클라이언트 코드와 로직 일치)
         const skinId = p.user.preferredSkin ?? 0;
-        if (skinId === 1) hp = 4;
+        if (skinId === 1) hp = 4; // 와이드 스킨
 
         const obj = {
             socket: p.socket || null,
@@ -256,6 +302,7 @@ function createAIMatch(entry) {
     점수 정산/게임오버/정리 헬퍼
 -------------------------------------- */
 
+// ★ 스킨 잠금 해제 로직 추가된 핵심 함수
 function settleScores(game, winnerSocketId) {
     if (game._scoresSettled) return;
     game._scoresSettled = true;
@@ -265,13 +312,19 @@ function settleScores(game, winnerSocketId) {
         if (!u) return;
 
         if (p.socketId === winnerSocketId) {
-            u.score += 25;
+            u.score += 25; // 승리 시 점수 획득
         } else {
-            u.score = Math.max(0, u.score - 20);
+            u.score = Math.max(0, u.score - 20); // 패배 시 점수 차감
         }
 
+        // 💡 점수 갱신 후, DB에 저장하기 전에 스킨 잠금 해제 확인 및 업데이트
+        const updatedUser = checkAndUnlockSkins(u);
+        
+        // 메모리 캐시 업데이트
+        users.set(p.userId, updatedUser);
+
         // DB에 비동기 업데이트 (기다리지 않고 fire-and-forget)
-        saveUserToDB(u).catch((err) =>
+        saveUserToDB(updatedUser).catch((err) =>
             console.error("[ERROR] saveUserToDB in settleScores:", err)
         );
     });
@@ -288,6 +341,7 @@ function sendGameOver(game, winnerSocketId) {
                 vsAI: game.ai
             });
 
+            // 💡 게임 종료 후 갱신된 프로필 (점수, 스킨 해제 상태 포함) 전송
             const u = users.get(p.userId);
             if (u) p.socket.emit("profile", serializeProfile(u));
         }
@@ -309,7 +363,10 @@ function destroyGame(game) {
 -------------------------------------- */
 
 function finishGame(game, winnerSocketId) {
-    settleScores(game, winnerSocketId);
+    // AI전의 경우 점수 정산/저장 건너뛰기
+    if (!game.ai) {
+        settleScores(game, winnerSocketId);
+    }
     sendGameOver(game, winnerSocketId);
     destroyGame(game);
 }
@@ -360,7 +417,11 @@ function updateGame(game, dt) {
 
         game.endTimer -= dt;
         if (game.endTimer <= 0 && game.winnerSocketId && !game._gameOverSent) {
-            settleScores(game, game.winnerSocketId);
+            // 게임 종료 시 점수 정산 및 프로필 업데이트/전송
+            // AI전이 아닐 때만 정산 진행
+            if (!game.ai) { 
+                settleScores(game, game.winnerSocketId);
+            }
             sendGameOver(game, game.winnerSocketId);
         }
         return;
@@ -374,9 +435,10 @@ function updateGame(game, dt) {
 
     game.players.forEach((p) => {
         let speed = 220;
-        if (p.skinId === 1) speed = 180;
-        if (p.skinId === 2) speed = 260;
-
+        // 💡 스킨에 따른 속도 설정 (클라이언트 로직 반영)
+        if (p.skinId === 1) speed = 180; // 와이드: 느림
+        if (p.skinId === 2) speed = 260; // 다트: 빠름
+        
         if (!p.socket) speed = 160;
 
         const m = p.moveInput;
@@ -552,6 +614,7 @@ function spawnBullet(game, shooter) {
     let vy = BASE * dir;
     let life = 2.0;
 
+    // 💡 스킨 3 (레이저)의 탄환 속성 조정
     if (shooter.skinId === 3) {
         vy = BASE * 1.1 * dir;
         life = 2.2;
@@ -585,7 +648,8 @@ function broadcastState(game) {
             shieldActive: p.shieldActive,
             hitInvActive: p.hitInvActive,
             skinId: p.skinId,
-            score: users.get(p.userId)?.score ?? p.scoreSnapshot
+            // 💡 현재 사용자의 최신 점수를 반영 (settleScores에서 갱신됨)
+            score: users.get(p.userId)?.score ?? p.scoreSnapshot 
         })),
         bullets: game.bullets.map((b) => ({
             x: b.x,
@@ -630,10 +694,11 @@ io.on("connection", (socket) => {
                     }
                 }
                 
-                const u = await getOrCreateUser(userId, nickname); // 닉네임 업데이트
+                const u = await getOrCreateUser(userId, nickname); // 닉네임 업데이트 + 스킨 해제 체크
                 
                 socket._userId = userId;
-                socket.emit("profile", serializeProfile(u));
+                // 💡 DB에서 로드된 최신 프로필 전송 (스킨 해제 상태 포함)
+                socket.emit("profile", serializeProfile(u)); 
                 return cb({ success: true, user: serializeProfile(u) });
 
             } else {
@@ -644,9 +709,10 @@ io.on("connection", (socket) => {
                 }
                 
                 // 신규 계정 생성
-                const newUser = await getOrCreateUser(userId, nickname);
+                const newUser = await getOrCreateUser(userId, nickname); // 신규 생성 + 스킨 해제 체크
                 
                 socket._userId = userId;
+                // 💡 신규 생성된 프로필 전송
                 socket.emit("profile", serializeProfile(newUser));
                 return cb({ success: true, user: serializeProfile(newUser) });
             }
@@ -675,10 +741,14 @@ io.on("connection", (socket) => {
     socket.on("set_skin", async ({ skinId }) => {
         const u = getUserBySocket(socket);
         if (!u) return;
-        if (!u.unlockedSkins.includes(skinId)) return;
+        // 💡 잠금 해제된 스킨인지 확인
+        if (!u.unlockedSkins.includes(skinId)) return; 
+        
         u.preferredSkin = skinId;
         try {
-            await saveUserToDB(u);
+            // saveUserToDB에서 checkAndUnlockSkins가 실행되지만, 이 요청은 스킨 선택이므로 필요 없음.
+            // 하지만 DB에 저장 후 클라이언트에게 최신 상태를 전송해야 함.
+            await saveUserToDB(u); 
             socket.emit("profile", serializeProfile(u));
         } catch (err) {
             console.error("[ERROR] set_skin:", err);
