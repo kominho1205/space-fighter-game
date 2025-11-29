@@ -34,24 +34,41 @@ function makeUserIdFromLogin(nick, pw) {
 }
 
 // ---------------- 소리 시스템 ----------------
-
 class SoundManager {
   constructor() {
     this.ctx = null;
     this.masterGain = null;
     this.enabled = true;
   }
+
   init() {
-    if (this.ctx) return;
     const AudioContext = window.AudioContext || window.webkitAudioContext;
+
+    // 이미 컨텍스트가 있으면 resume 시도
+    if (this.ctx) {
+      if (this.ctx.state === "suspended") {
+        this.ctx.resume();
+      }
+      return;
+    }
+
+    // "유저 제스처 이벤트" 안에서만 이 init()이 호출되도록 유지할 것
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.value = 0.5;
     this.masterGain.connect(this.ctx.destination);
+
+    // 혹시라도 생성 직후 suspended면 바로 resume 시도
+    if (this.ctx.state === "suspended") {
+      this.ctx.resume();
+    }
   }
+
   _tone({ freq = 440, duration = 0.1, type = "square", volume = 0.8 }) {
     if (!this.enabled) return;
-    if (!this.ctx) this.init();
+    // 여기서 init() 호출하지 않음 — iOS에서 막힘 방지
+    if (!this.ctx || this.ctx.state !== "running") return;
+
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = type;
@@ -65,6 +82,7 @@ class SoundManager {
     osc.start(now);
     osc.stop(now + duration);
   }
+
   playShoot() {
     this._tone({ freq: 900, duration: 0.07, type: "square", volume: 0.45 });
   }
