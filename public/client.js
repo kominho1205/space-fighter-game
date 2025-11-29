@@ -3,38 +3,43 @@
 ------------------------ */
 
 const bg = document.getElementById("bgCanvas");
-const bgCtx = bg.getContext("2d");
+let bgCtx = null;
 
-function resizeBg() {
-  bg.width = window.innerWidth;
-  bg.height = window.innerHeight;
-}
-resizeBg();
-window.addEventListener("resize", resizeBg);
+if (bg) {
+  bgCtx = bg.getContext("2d");
 
-function drawBackground() {
-  const w = bg.width;
-  const h = bg.height;
-
-  const g = bgCtx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, "#0e1635");
-  g.addColorStop(1, "#050814");
-  bgCtx.fillStyle = g;
-  bgCtx.fillRect(0, 0, w, h);
-
-  bgCtx.fillStyle = "rgba(255,255,255,0.2)";
-  for (let i = 0; i < 40; i++) {
-    const x = (i * 123) % w;
-    const y = (i * 57 + Math.floor(performance.now() * 0.02)) % h;
-    bgCtx.fillRect(x, y, 2, 2);
+  function resizeBg() {
+    bg.width = window.innerWidth;
+    bg.height = window.innerHeight;
   }
-}
 
-function bgLoop() {
-  requestAnimationFrame(bgLoop);
-  drawBackground();
+  resizeBg();
+  window.addEventListener("resize", resizeBg);
+
+  function drawBackground() {
+    const w = bg.width;
+    const h = bg.height;
+
+    const g = bgCtx.createLinearGradient(0, 0, 0, h);
+    g.addColorStop(0, "#0e1635");
+    g.addColorStop(1, "#050814");
+    bgCtx.fillStyle = g;
+    bgCtx.fillRect(0, 0, w, h);
+
+    bgCtx.fillStyle = "rgba(255,255,255,0.2)";
+    for (let i = 0; i < 40; i++) {
+      const x = (i * 123) % w;
+      const y = (i * 57 + Math.floor(performance.now() * 0.02)) % h;
+      bgCtx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  function bgLoop() {
+    requestAnimationFrame(bgLoop);
+    drawBackground();
+  }
+  bgLoop();
 }
-bgLoop();
 
 // ---------------- 로그인/화면 제어 ----------------
 
