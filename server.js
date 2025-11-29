@@ -1,3 +1,4 @@
+// server.js
 const path = require("path");
 const express = require("express");
 const http = require("http");
@@ -115,7 +116,7 @@ function makeNewGame(matchId, players, options) {
     id: matchId,
     ai: !!options.ai,
 
-    // 3초 카운트다운 추가
+    // 3초 카운트다운
     countdown: 3,
 
     players: [],
@@ -130,7 +131,11 @@ function makeNewGame(matchId, players, options) {
     // 파괴 연출 후 딜레이 종료
     ended: false,
     winnerSocketId: null,
-    endTimer: 0
+    endTimer: 0,
+
+    // 점수/게임오버 중복 방지 플래그
+    _scoresSettled: false,
+    _gameOverSent: false
   };
 
   players.forEach((p) => {
@@ -221,10 +226,13 @@ function createAIMatch(entry) {
 }
 
 /* --------------------------------------
-   게임 종료 처리
+   점수 정산/게임오버/정리 헬퍼
 -------------------------------------- */
 
-function finishGame(game, winnerSocketId) {
+function settleScores(game, winnerSocketId) {
+  if (game._scoresSettled) return;
+  game._scoresSettled = true;
+
   game.players.forEach((p) => {
     const u = users.get(p.userId);
     if (!u) return;
@@ -236,22 +244,24 @@ function finishGame(game, winnerSocketId) {
     }
   });
 
-  // 저장
   saveUsersToFile();
+}
+
+function sendGameOver(game, winnerSocketId) {
+  if (game._gameOverSent) return;
+  game._gameOverSent = true;
 
   game.players.forEach((p) => {
     if (p.socket) {
-      p.socket.emit("game_over", { winner: winnerSocketId });
+      p.socket.emit("game_over", {
+        winner: winnerSocketId,
+        vsAI: game.ai
+      });
 
       const u = users.get(p.userId);
       if (u) p.socket.emit("profile", serializeProfile(u));
-
-      p.socket.leave(game.id);
-      socketMatch.delete(p.socket.id);
     }
   });
-
-  games.delete(game.id);
 }
 
 function destroyGame(game) {
@@ -262,6 +272,16 @@ function destroyGame(game) {
     }
   });
   games.delete(game.id);
+}
+
+/* --------------------------------------
+   게임 종료 처리 (강제 종료용)
+-------------------------------------- */
+
+function finishGame(game, winnerSocketId) {
+  settleScores(game, winnerSocketId);
+  sendGameOver(game, winnerSocketId);
+  destroyGame(game);
 }
 
 function leaveCurrentGame(socket, opt = {}) {
@@ -300,10 +320,8 @@ setInterval(() => {
 -------------------------------------- */
 
 function updateGame(game, dt) {
-
-  /* 파괴 후 연출 단계 */
+  // 파괴 후 연출 단계
   if (game.ended) {
-    // 폭발 업데이트
     const ex2 = [];
     game.explosions.forEach((e) => {
       e.age += dt;
@@ -312,13 +330,15 @@ function updateGame(game, dt) {
     game.explosions = ex2;
 
     game.endTimer -= dt;
-    if (game.endTimer <= 0 && game.winnerSocketId) {
-      finishGame(game, game.winnerSocketId);
+    // 폭발 끝날 때 점수/게임오버만 보내고, 게임은 유지 (재대전용)
+    if (game.endTimer <= 0 && game.winnerSocketId && !game._gameOverSent) {
+      settleScores(game, game.winnerSocketId);
+      sendGameOver(game, game.winnerSocketId);
     }
     return;
   }
 
-  /* 카운트다운 중이면 이동 금지 */
+  // 카운트다운 중이면 이동/공격 금지
   if (game.countdown > 0) {
     game.countdown -= dt;
     if (game.countdown < 0) game.countdown = 0;
@@ -336,7 +356,8 @@ function updateGame(game, dt) {
     if (!p.socket) speed = 160;
 
     const m = p.moveInput;
-    let vx = 0, vy = 0;
+    let vx = 0,
+      vy = 0;
     if (m.left) vx -= speed;
     if (m.right) vx += speed;
     if (m.up) vy -= speed;
@@ -364,8 +385,8 @@ function updateGame(game, dt) {
   /* --- AI 동작 --- */
 
   if (game.ai) {
-    const ai = game.players.find(p => !p.socket);
-    const human = game.players.find(p => p.socket);
+    const ai = game.players.find((p) => !p.socket);
+    const human = game.players.find((p) => p.socket);
 
     if (ai && human) {
       let targetX = human.x;
@@ -392,10 +413,10 @@ function updateGame(game, dt) {
       const dy = targetY - ai.y;
       const MOVE_DEAD = 25;
 
-      ai.moveInput.left  = dx < -MOVE_DEAD;
-      ai.moveInput.right = dx >  MOVE_DEAD;
-      ai.moveInput.up    = dy < -MOVE_DEAD;
-      ai.moveInput.down  = dy >  MOVE_DEAD;
+      ai.moveInput.left = dx < -MOVE_DEAD;
+      ai.moveInput.right = dx > MOVE_DEAD;
+      ai.moveInput.up = dy < -MOVE_DEAD;
+      ai.moveInput.down = dy > MOVE_DEAD;
 
       const aligned = Math.abs(dx) < 40;
 
