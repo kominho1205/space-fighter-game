@@ -1,6 +1,6 @@
 {
   "name": "spacez",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "description": "Space Z - 1vs1 online fighter",
   "main": "server.js",
   "scripts": {
