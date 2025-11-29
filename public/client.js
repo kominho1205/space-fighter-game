@@ -1,5 +1,5 @@
 /* -----------------------
-   GLOBAL BACKGROUND CANVAS
+   GLOBAL BACKGROUND CANVAS
 ------------------------ */
 
 const bg = document.getElementById("bgCanvas");
@@ -187,22 +187,26 @@ socket.on("profile", (p) => {
   renderSkinList();
 });
 
-// 실제 로그인 처리 (서버에 identify만 보냄)
-function doLogin(nick, pw, { auto = false } = {}) {
-  nickname = nick;
-  userId = makeUserIdFromLogin(nick, pw);
-  currentAccount = { nickname: nick };
+// 실제 로그인 처리 (서버 identify 성공 후 호출됨)
+function finalizeLogin(userProfile) {
+  // 전역 변수 업데이트
+  nickname = userProfile.nickname;
+  userId = userProfile.userId; // 서버에서 확정된 userId (makeUserIdFromLogin을 이미 통과했거나, 로드된 값)
+  currentAccount = { nickname: userProfile.nickname };
 
-  // 자동 로그인 저장
+  // 자동 로그인 정보 저장 (닉네임과 비밀번호를 다시 저장)
+  const nick = document.getElementById("nicknameInput").value.trim();
+  const pw = document.getElementById("passwordInput").value.trim();
   localStorage.setItem(
     ACCOUNT_KEY,
     JSON.stringify({ nickname: nick, password: pw })
   );
 
-  // 서버에 계정 식별 요청
-  socket.emit("identify", { userId, nickname });
+  // 프로필 업데이트 (서버에서 받은 최신 정보로)
+  latestProfile = userProfile;
+  // UI 업데이트 함수 호출 (socket.on('profile')이 이미 하긴 하지만, 확실히)
+  socket.emit("profile", userProfile); 
 
-  // 서버 응답 기다리지 말고 바로 홈으로
   showScreen("home");
 }
 
@@ -226,28 +230,90 @@ function tryAutoLogin() {
     showScreen("nickname");
     return;
   }
-  doLogin(data.nickname, data.password, { auto: true });
+
+  // 자동 로그인 시도 시에도 서버의 응답을 기다립니다.
+  const autoUserId = makeUserIdFromLogin(data.nickname, data.password);
+  
+  // 비밀번호 입력 필드에 자동 채우기 (나중에 수동 로그인을 위해)
+  document.getElementById("nicknameInput").value = data.nickname;
+  document.getElementById("passwordInput").value = data.password;
+  
+  socket.emit("identify", { userId: autoUserId, nickname: data.nickname }, (res) => {
+    if (res.success) {
+      finalizeLogin(res.user);
+    } else {
+      console.error("Auto-login failed:", res.reason);
+      localStorage.removeItem(ACCOUNT_KEY);
+      showScreen("nickname");
+    }
+  });
 }
 
 // 소켓 연결되면 자동 로그인 시도
 socket.on("connect", () => {
+  mySocketId = socket.id;
+
   if (userId && nickname) {
-    // 이미 로그인 정보 있으면 재식별
-    socket.emit("identify", { userId, nickname });
-    showScreen("home");
+    // 이미 로그인 정보 있으면 재식별 (connect 핸들러에서 바로 처리)
+    const storedPw = JSON.parse(localStorage.getItem(ACCOUNT_KEY))?.password || "";
+    const currentUserId = makeUserIdFromLogin(nickname, storedPw);
+    
+    // 재접속 시에도 서버의 응답을 기다려야 함
+    socket.emit("identify", { userId: currentUserId, nickname: nickname }, (res) => {
+        if (res.success) {
+            // 이미 로그인된 상태이므로 UI만 업데이트 (finalizeLogin은 호출 안 함)
+            latestProfile = res.user; 
+            showScreen("home");
+        } else {
+            console.error("Re-identification failed:", res.reason);
+            localStorage.removeItem(ACCOUNT_KEY);
+            userId = null;
+            nickname = null;
+            showScreen("nickname");
+        }
+    });
+
   } else {
     tryAutoLogin();
   }
 });
 
-// 닉네임/비밀번호 입력 버튼
+// 닉네임/비밀번호 입력 버튼 (★ 수정된 부분)
 document
   .getElementById("nicknameConfirmBtn")
   .addEventListener("click", () => {
     const nick = document.getElementById("nicknameInput").value.trim();
     const pw = document.getElementById("passwordInput").value.trim();
-    if (!nick || !pw) return;
-    doLogin(nick, pw, { auto: false });
+
+    if (nick.length < 2) {
+      alert("닉네임을 2자 이상 입력해주세요.");
+      return;
+    }
+    if (pw.length < 4) {
+      alert("비밀번호를 4자 이상 입력해주세요.");
+      return;
+    }
+    
+    // 1. 유효성 검사 후 userId 생성
+    const newUserId = makeUserIdFromLogin(nick, pw);
+    
+    // 2. 서버에 identify 요청 및 콜백 처리 (닉네임 중복 검사 포함)
+    socket.emit("identify", { userId: newUserId, nickname: nick }, (res) => {
+        if (res.success) {
+            // 성공: 로그인 완료 처리
+            finalizeLogin(res.user);
+        } else {
+            // 실패: 에러 메시지 표시
+            if (res.reason === "NICKNAME_TAKEN") {
+                alert("이미 사용 중인 닉네임이거나, 다른 비밀번호로 사용 중인 닉네임입니다. 닉네임 또는 비밀번호를 변경해주세요.");
+            } else if (res.reason === "SERVER_ERROR") {
+                alert("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+            } else {
+                alert("로그인/계정 생성 중 오류가 발생했습니다.");
+            }
+            // 비밀번호 입력 필드는 그대로 유지하여 재시도 가능하게 함
+        }
+    });
   });
 
 // 로그아웃 버튼 (없을 수도 있으니 방어 코드)
@@ -260,6 +326,10 @@ if (logoutBtn) {
     userId = null;
     nickname = null;
     showScreen("nickname");
+    
+    // 닉네임/비밀번호 입력 필드 초기화
+    document.getElementById("nicknameInput").value = "";
+    document.getElementById("passwordInput").value = "";
   });
 }
 
@@ -346,8 +416,8 @@ function renderSkinList() {
         <div style="font-size:12px;color:#b9c2ff;">${skin.desc}</div>
       </div>
       <button class="skinSelectBtn" data-id="${skin.id}" ${
-      locked ? "disabled" : ""
-    }>${btnLabel}</button>
+        locked ? "disabled" : ""
+      }>${btnLabel}</button>
     `;
 
     container.appendChild(div);
@@ -753,10 +823,10 @@ function draw() {
 
   // ★ 게임 맵용 조금 더 밝은 배경 패널
   const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  g.addColorStop(0, "#1b2b5d");   // 위쪽 밝은 남색
-  g.addColorStop(1, "#070e26");   // 아래쪽 짙은 남색
+  g.addColorStop(0, "#1b2b5d"); // 위쪽 밝은 남색
+  g.addColorStop(1, "#070e26"); // 아래쪽 짙은 남색
   ctx.save();
-  ctx.globalAlpha = 0.92;         // 뒤의 우주 배경이 살짝 비치게
+  ctx.globalAlpha = 0.92; // 뒤의 우주 배경이 살짝 비치게
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.restore();
