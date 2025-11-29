@@ -1,498 +1,516 @@
 * {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: #050814;
-  color: #f1f1f1;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
-    sans-serif;
+  background: #050814;
+  color: #f1f1f1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+    sans-serif;
 }
 
 #app {
-  width: 100%;
-  min-height: 100vh;
+  width: 100%;
+  min-height: 100vh;
 }
 
 /* 화면 공통 */
 
 .screen {
-  width: 100%;
-  min-height: 100vh;
-  display: none;
-  align-items: center;
-  justify-content: center;
+  width: 100%;
+  min-height: 100vh;
+  display: none;
+  align-items: center;
+  justify-content: center;
 }
 
 .screen:not(.hidden) {
-  display: flex;
+  display: flex;
 }
 
 .hidden {
-  display: none !important;
+  display: none !important;
 }
 
 /* 패널 공통 */
 
 .panel {
-  width: 360px;
-  padding: 20px 18px 18px;
-  background: rgba(10, 12, 30, 0.95);
-  border-radius: 12px;
-  border: 1px solid #283063;
-  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  width: 360px;
+  padding: 20px 18px 18px;
+  background: rgba(10, 12, 30, 0.95);
+  border-radius: 12px;
+  border: 1px solid #283063;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .panel h1 {
-  font-size: 20px;
-  color: #8fd3ff;
+  font-size: 20px;
+  color: #8fd3ff;
 }
 
 .sub {
-  font-size: 13px;
-  color: #d0d5ff;
+  font-size: 13px;
+  color: #d0d5ff;
 }
 
 .panel input {
-  margin-top: 4px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #374377;
-  background: #05081a;
-  color: #f1f1f1;
-  font-size: 14px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #374377;
+  background: #05081a;
+  color: #f1f1f1;
+  font-size: 14px;
 }
 
 .panel button {
-  margin-top: 4px;
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: none;
-  background: #11192f;
-  color: #c6d1ff;
-  font-size: 14px;
-  cursor: pointer;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  background: #11192f;
+  color: #c6d1ff;
+  font-size: 14px;
+  cursor: pointer;
 }
 
 .panel button.primary {
-  background: #2f7bff;
-  color: #fff;
+  background: #2f7bff;
+  color: #fff;
 }
 
 .panel button:hover {
-  background: #18203b;
+  background: #18203b;
 }
 
 .homeRow {
-  display: flex;
-  justify-content: space-between;
-  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
 }
 
 .label {
-  color: #b8c1ff;
+  color: #b8c1ff;
 }
 
 /* 랭킹 */
 
 #rankingList {
-  margin-top: 6px;
-  max-height: 320px;
-  overflow-y: auto;
-  font-size: 14px;
-  padding-left: 20px;
+  margin-top: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  font-size: 14px;
+  padding-left: 20px;
 }
 
 /* 스킨 카드 */
 
 #skinList {
-  margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 320px;
-  overflow-y: auto;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .skinCard {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: #10152f;
-  border: 1px solid #2b335f;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #10152f;
+  border: 1px solid #2b335f;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
 }
 
 .skinName {
-  font-weight: 600;
+  font-weight: 600;
 }
 
 .skinReq {
-  color: #9ea7ff;
-  font-size: 12px;
+  color: #9ea7ff;
+  font-size: 12px;
 }
 
 .skinCard button {
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 6px 10px;
+  font-size: 12px;
 }
 
 /* 게임 화면 레이아웃 */
 
 #screen-game {
-  justify-content: center;
-  align-items: center;
-  padding: 16px;
-  gap: 16px;
-  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  gap: 16px;
+  flex-direction: row;
 }
 
 #ui {
-  width: 320px;
-  padding: 16px;
-  background: rgba(10, 12, 30, 0.95);
-  border-radius: 12px;
-  border: 1px solid #283063;
-  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  width: 320px;
+  padding: 16px;
+  background: rgba(10, 12, 30, 0.95);
+  border-radius: 12px;
+  border: 1px solid #283063;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 #ui h1 {
-  font-size: 20px;
-  margin-bottom: 4px;
-  color: #8fd3ff;
+  font-size: 20px;
+  margin-bottom: 4px;
+  color: #8fd3ff;
 }
 
 #status {
-  font-size: 13px;
-  padding: 6px 8px;
-  border-radius: 8px;
-  background: rgba(35, 49, 120, 0.5);
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(35, 49, 120, 0.5);
 }
 
 #info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
 }
 
 #rankInfo {
-  font-size: 13px;
-  color: #b8c1ff;
+  font-size: 13px;
+  color: #b8c1ff;
 }
 
 /* 체력 표시 */
 
 #heartsWrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
 }
 
+/* 💡 [수정] 닉네임과 하트 영역을 좌우로 분리 */
 .heartsRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between; /* 닉네임과 하트를 양 끝으로 분리 */
 }
 
+/* 닉네임 라벨이 하트 영역에 침범하지 않도록 최대 너비 제한 및 처리 */
 .heartsLabel {
-  width: 72px;
-  font-size: 13px;
-  color: #b8c1ff;
+  max-width: 120px; /* 닉네임 최대 너비 제한 (필요에 따라 조절 가능) */
+  font-size: 13px;
+  color: #b8c1ff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 내 닉네임 라벨은 색 강조 */
 #pcMyLabel,
 #mobileMyLabel {
-  color: #ffe66d;
+  color: #ffe66d;
 }
 
 .hearts {
-  min-height: 24px;
+  min-height: 24px;
+  /* 💡 [추가] 하트 영역이 닉네임 길이 때문에 줄어들지 않도록 고정 */
+  flex-shrink: 0; 
 }
 
 .heart {
-  display: inline-block;
-  width: 18px;
-  height: 18px;
-  margin-right: 14px;
-  background: #ff4b69;
-  position: relative;
-  transform: rotate(-45deg);
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  margin-right: 14px;
+  background: #ff4b69;
+  position: relative;
+  transform: rotate(-45deg);
 }
 
 .heart::before,
 .heart::after {
-  content: "";
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  background: #ff4b69;
-  border-radius: 50%;
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  background: #ff4b69;
+  border-radius: 50%;
 }
 
 .heart::before {
-  top: -9px;
-  left: 0;
+  top: -9px;
+  left: 0;
 }
 
 .heart::after {
-  left: 9px;
-  top: 0;
+  left: 9px;
+  top: 0;
 }
 
 /* 탄약 게이지 */
 
 #ammoWrapper {
-  margin-top: 4px;
-  font-size: 13px;
+  margin-top: 4px;
+  font-size: 13px;
 }
 
 .ammoBar {
-  width: 100%;
-  height: 16px;
-  border-radius: 8px;
-  background: #181c36;
-  margin-top: 4px;
-  overflow: hidden;
+  width: 100%;
+  height: 16px;
+  border-radius: 8px;
+  background: #181c36;
+  margin-top: 4px;
+  overflow: hidden;
 }
 
 .ammoFill {
-  height: 100%;
-  width: 100%;
-  background: linear-gradient(90deg, #28f7ff, #2f7bff);
-  transition: width 0.1s linear;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, #28f7ff, #2f7bff);
+  transition: width 0.1s linear;
 }
 
 /* 버튼 */
 
 #buttonsWrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 #buttonsWrapper button {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: none;
-  font-weight: 600;
-  font-size: 14px;
-  cursor: pointer;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
 }
 
 #restartBtn {
-  background: #2f7bff;
-  color: #fff;
+  background: #2f7bff;
+  color: #fff;
 }
 
 #restartBtn:disabled {
-  opacity: 0.4;
-  cursor: default;
+  opacity: 0.4;
+  cursor: default;
 }
 
 #btnGameBack {
-  background: #171c32;
-  color: #e5e8ff;
+  background: #171c32;
+  color: #e5e8ff;
 }
 
 #btnGameBack:hover {
-  background: #18203b;
+  background: #18203b;
 }
 
 /* 캔버스 */
 
 #gameCanvas {
-  border-radius: 12px;
-  border: 1px solid #283063;
-  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
-  background: radial-gradient(circle at top, #1a2454 0, #050814 55%);
+  border-radius: 12px;
+  border: 1px solid #283063;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.5);
+  background: radial-gradient(circle at top, #1a2454 0, #050814 55%);
 }
 
 /* 오버레이 (텍스트만) */
 
 #overlay {
-  position: fixed;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  z-index: 10;
-  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  z-index: 10;
+  pointer-events: none;
 }
 
 #overlay.hidden {
-  display: none;
+  display: none;
 }
 
 #overlayText {
-  background: transparent;
-  border: none;
-  padding: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #ffe66d;
-  text-align: center;
-  white-space: pre-line;
-  pointer-events: auto;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffe66d;
+  text-align: center;
+  white-space: pre-line;
+  pointer-events: auto;
 }
 
 /* 모바일 전용 공통 */
 
 .mobile-only {
-  display: none;
+  display: none;
 }
 
 /* 기본 모바일 조이스틱, FIRE 컨테이너는 아래 media query에서 재정의 */
 
 /* --------------------------------------
-   모바일 레이아웃
+   모바일 레이아웃
 -------------------------------------- */
 @media (max-width: 768px) {
-  #screen-game {
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 8px 0 24px;
-    gap: 12px;
+  #screen-game {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 8px 0 24px;
+    gap: 12px;
+  }
+
+  /* PC용 체력/탄약/설명 숨김 */
+  #heartsWrapper,
+  #ammoWrapper,
+  #info {
+    display: none;
+  }
+
+  /* 모바일 체력: 맨 위 */
+  .mobile-hearts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    max-width: 480px;
+    padding: 0 12px;
+  }
+    
+  /* 💡 [수정] 모바일에서도 닉네임과 하트를 좌우로 분리 */
+  .mobile-hearts .heartsRow {
+    justify-content: space-between;
+  }
+  
+  /* 💡 [수정] 모바일 환경 닉네임 라벨 최대 너비 조정 */
+  .mobile-hearts .heartsLabel {
+    max-width: 60%; /* 모바일에서 닉네임이 차지할 비율 조정 */
   }
 
-  /* PC용 체력/탄약/설명 숨김 */
-  #heartsWrapper,
-  #ammoWrapper,
-  #info {
-    display: none;
-  }
 
-  /* 모바일 체력: 맨 위 */
-  .mobile-hearts {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    width: 100%;
-    max-width: 480px;
-    padding: 0 12px;
-  }
+  /* 캔버스 */
+  #gameCanvas {
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+  }
 
-  /* 캔버스 */
-  #gameCanvas {
-    width: 100%;
-    max-width: 480px;
-    height: auto;
-  }
+  /* 모바일 탄약 */
+  .mobile-ammo {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+    padding: 0 12px;
+  }
 
-  /* 모바일 탄약 */
-  .mobile-ammo {
-    display: block;
-    width: 100%;
-    max-width: 480px;
-    padding: 0 12px;
-  }
+  /* 모바일 조이스틱 + FIRE */
+  .mobile-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 48px;
+    width: 100%;
+    max-width: 480px;
+    padding: 8px 0;
+  }
 
-  /* 모바일 조이스틱 + FIRE */
-  .mobile-controls {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 48px;
-    width: 100%;
-    max-width: 480px;
-    padding: 8px 0;
-  }
+  #joystickWrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-  #joystickWrapper {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
+  #joystickBase {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: rgba(40, 60, 120, 0.9);
+    border: 3px solid #7fa8ff;
+    position: relative;
+    touch-action: none;
+    z-index: 10;
+  }
 
-  #joystickBase {
-    width: 120px;
-    height: 120px;
-    border-radius: 50%;
-    background: rgba(40, 60, 120, 0.9);
-    border: 3px solid #7fa8ff;
-    position: relative;
-    touch-action: none;
-    z-index: 10;
-  }
+  #joystickStick {
+    width: 55px;
+    height: 55px;
+    border-radius: 50%;
+    background: #4d8dff;
+    border: 3px solid #d4e2ff;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 11;
+    pointer-events: none;
+  }
 
-  #joystickStick {
-    width: 55px;
-    height: 55px;
-    border-radius: 50%;
-    background: #4d8dff;
-    border: 3px solid #d4e2ff;
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    z-index: 11;
-    pointer-events: none;
-  }
+  .mobile-fire {
+    display: flex;
+    align-items: center;
+  }
 
-  .mobile-fire {
-    display: flex;
-    align-items: center;
-  }
+  .mobile-fire #btnFire {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background: #ff4040;
+    border: 3px solid #ff8a8a;
+    color: white;
+    font-size: 22px;
+    font-weight: 800;
+    box-shadow: 0 0 16px rgba(255, 60, 60, 0.65);
+  }
 
-  .mobile-fire #btnFire {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
-    background: #ff4040;
-    border: 3px solid #ff8a8a;
-    color: white;
-    font-size: 22px;
-    font-weight: 800;
-    box-shadow: 0 0 16px rgba(255, 60, 60, 0.65);
-  }
+  .mobile-fire #btnFire:active {
+    background: #ff6060;
+  }
 
-  .mobile-fire #btnFire:active {
-    background: #ff6060;
-  }
-
-  #ui {
-    width: 100%;
-    max-width: 480px;
-    margin-top: 12px;
-  }
+  #ui {
+    width: 100%;
+    max-width: 480px;
+    margin-top: 12px;
+  }
 }
 
 #bgCanvas {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  z-index: -1;
-  pointer-events: none;
-  background: black;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: -1;
+  pointer-events: none;
+  background: black;
 }
 
 /* 메인 로고 */
 .main-logo-wrap {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 24px;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
 }
 
 .main-logo {
-  width: 260px;          /* 로고 크기 조절 */
-  max-width: 70%;
-  height: auto;
+  width: 260px;          /* 로고 크기 조절 */
+  max-width: 70%;
+  height: auto;
 }
-
