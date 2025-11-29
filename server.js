@@ -88,7 +88,7 @@ async function checkNicknameAvailability(nickname) {
     return res.rowCount === 0; // 사용 가능하면 true
 }
 
-// ★ 스킨 잠금 해제 로직 추가: 저장 전에 스킨 상태를 확인 및 업데이트
+// 스킨 잠금 해제 로직 추가: 저장 전에 스킨 상태를 확인 및 업데이트
 async function saveUserToDB(u) {
     // 💡 저장 직전에 스킨 잠금 해제 확인 및 업데이트
     const updatedUser = checkAndUnlockSkins(u);
@@ -128,7 +128,7 @@ async function getOrCreateUser(userId, nickname) {
         }
     }
     
-    // 💡 메모리 캐시에 저장되기 전에 스킨 잠금 해제 확인 (점수 변동이 없을 수도 있지만 안전 조치)
+    // 메모리 캐시에 저장되기 전에 스킨 잠금 해제 확인 (점수 변동이 없을 수도 있지만 안전 조치)
     u = checkAndUnlockSkins(u);
     
     // DB에 저장
@@ -213,7 +213,7 @@ function makeNewGame(matchId, players, options) {
         const isBottom = p.role === "bottom";
         let hp = 3;
         
-        // 💡 스킨에 따른 초기 HP 설정 (클라이언트 코드와 로직 일치)
+        // 스킨에 따른 초기 HP 설정 (클라이언트 코드와 로직 일치)
         const skinId = p.user.preferredSkin ?? 0;
         if (skinId === 1) hp = 4; // 와이드 스킨
 
@@ -302,22 +302,27 @@ function createAIMatch(entry) {
     점수 정산/게임오버/정리 헬퍼
 -------------------------------------- */
 
-// ★ 스킨 잠금 해제 로직 추가된 핵심 함수
+// ★ 수정: AI전과 일반전 모두 동일한 점수 적용
 function settleScores(game, winnerSocketId) {
     if (game._scoresSettled) return;
     game._scoresSettled = true;
+
+    // 💡 AI전 여부에 관계없이 동일한 점수 적용 (사용자 요청)
+    const WIN_SCORE = 25; 
+    const LOSE_SCORE = -20; 
 
     game.players.forEach((p) => {
         const u = users.get(p.userId);
         if (!u) return;
 
         if (p.socketId === winnerSocketId) {
-            u.score += 25; // 승리 시 점수 획득
+            u.score += WIN_SCORE; // 승리 시 25점 획득
         } else {
-            u.score = Math.max(0, u.score - 20); // 패배 시 점수 차감
+            // 패배 시 20점 차감 (최소 점수는 0점)
+            u.score = Math.max(0, u.score + LOSE_SCORE); 
         }
 
-        // 💡 점수 갱신 후, DB에 저장하기 전에 스킨 잠금 해제 확인 및 업데이트
+        // 점수 갱신 후, DB에 저장하기 전에 스킨 잠금 해제 확인 및 업데이트
         const updatedUser = checkAndUnlockSkins(u);
         
         // 메모리 캐시 업데이트
@@ -341,7 +346,7 @@ function sendGameOver(game, winnerSocketId) {
                 vsAI: game.ai
             });
 
-            // 💡 게임 종료 후 갱신된 프로필 (점수, 스킨 해제 상태 포함) 전송
+            // 게임 종료 후 갱신된 프로필 (점수, 스킨 해제 상태 포함) 전송
             const u = users.get(p.userId);
             if (u) p.socket.emit("profile", serializeProfile(u));
         }
@@ -362,11 +367,9 @@ function destroyGame(game) {
     게임 종료 처리 (강제 종료용)
 -------------------------------------- */
 
+// AI전 예외 조건이 원래 없었으므로 그대로 유지
 function finishGame(game, winnerSocketId) {
-    // AI전의 경우 점수 정산/저장 건너뛰기
-    if (!game.ai) {
-        settleScores(game, winnerSocketId);
-    }
+    settleScores(game, winnerSocketId);
     sendGameOver(game, winnerSocketId);
     destroyGame(game);
 }
@@ -418,10 +421,7 @@ function updateGame(game, dt) {
         game.endTimer -= dt;
         if (game.endTimer <= 0 && game.winnerSocketId && !game._gameOverSent) {
             // 게임 종료 시 점수 정산 및 프로필 업데이트/전송
-            // AI전이 아닐 때만 정산 진행
-            if (!game.ai) { 
-                settleScores(game, game.winnerSocketId);
-            }
+            settleScores(game, game.winnerSocketId);
             sendGameOver(game, game.winnerSocketId);
         }
         return;
@@ -435,7 +435,7 @@ function updateGame(game, dt) {
 
     game.players.forEach((p) => {
         let speed = 220;
-        // 💡 스킨에 따른 속도 설정 (클라이언트 로직 반영)
+        // 스킨에 따른 속도 설정 (클라이언트 로직 반영)
         if (p.skinId === 1) speed = 180; // 와이드: 느림
         if (p.skinId === 2) speed = 260; // 다트: 빠름
         
@@ -614,7 +614,7 @@ function spawnBullet(game, shooter) {
     let vy = BASE * dir;
     let life = 2.0;
 
-    // 💡 스킨 3 (레이저)의 탄환 속성 조정
+    // 스킨 3 (레이저)의 탄환 속성 조정
     if (shooter.skinId === 3) {
         vy = BASE * 1.1 * dir;
         life = 2.2;
@@ -648,7 +648,7 @@ function broadcastState(game) {
             shieldActive: p.shieldActive,
             hitInvActive: p.hitInvActive,
             skinId: p.skinId,
-            // 💡 현재 사용자의 최신 점수를 반영 (settleScores에서 갱신됨)
+            // 현재 사용자의 최신 점수를 반영 (settleScores에서 갱신됨)
             score: users.get(p.userId)?.score ?? p.scoreSnapshot 
         })),
         bullets: game.bullets.map((b) => ({
@@ -697,7 +697,7 @@ io.on("connection", (socket) => {
                 const u = await getOrCreateUser(userId, nickname); // 닉네임 업데이트 + 스킨 해제 체크
                 
                 socket._userId = userId;
-                // 💡 DB에서 로드된 최신 프로필 전송 (스킨 해제 상태 포함)
+                // DB에서 로드된 최신 프로필 전송 (스킨 해제 상태 포함)
                 socket.emit("profile", serializeProfile(u)); 
                 return cb({ success: true, user: serializeProfile(u) });
 
@@ -712,7 +712,7 @@ io.on("connection", (socket) => {
                 const newUser = await getOrCreateUser(userId, nickname); // 신규 생성 + 스킨 해제 체크
                 
                 socket._userId = userId;
-                // 💡 신규 생성된 프로필 전송
+                // 신규 생성된 프로필 전송
                 socket.emit("profile", serializeProfile(newUser));
                 return cb({ success: true, user: serializeProfile(newUser) });
             }
@@ -741,7 +741,7 @@ io.on("connection", (socket) => {
     socket.on("set_skin", async ({ skinId }) => {
         const u = getUserBySocket(socket);
         if (!u) return;
-        // 💡 잠금 해제된 스킨인지 확인
+        // 잠금 해제된 스킨인지 확인
         if (!u.unlockedSkins.includes(skinId)) return; 
         
         u.preferredSkin = skinId;
