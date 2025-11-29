@@ -483,3 +483,16 @@ body {
   background: black;
 }
 
+/* 메인 로고 */
+.main-logo-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.main-logo {
+  width: 260px;          /* 로고 크기 조절 */
+  max-width: 70%;
+  height: auto;
+}
+
