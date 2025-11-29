@@ -19,6 +19,12 @@ const SKIN_DATA = [
     { id: 3, name: "레이저", requiredScore: 700, desc: "HP 3, 긴 레이저 탄" }
 ];
 
+// ---------- AI 닉네임 데이터 추가 (랜덤 조합용) ----------
+// 💡 AI 닉네임을 그때그때 조합하여 AI 티가 덜 나게 합니다.
+const NICKNAME_PREFIXES = ["Cosmic", "Shadow", "Nova", "Silent", "Iron", "Phantom", "Blaze", "Star", "Hyper", "Dark"];
+const NICKNAME_SUFFIXES = ["Stinger", "Drifter", "Hawk", "Rider", "Strike", "Ghost", "Fury", "Viper", "Edge", "Jet"];
+
+
 // ---------- PostgreSQL 연결 ----------
 
 const pool = new Pool({
@@ -276,13 +282,32 @@ function createHumanMatch(p1, p2) {
 
 function createAIMatch(entry) {
     const matchId = generateMatchId();
+    
+    // 💡 1. 랜덤 닉네임 생성 (단어 조합)
+    const prefix = NICKNAME_PREFIXES[Math.floor(Math.random() * NICKNAME_PREFIXES.length)];
+    const suffix = NICKNAME_SUFFIXES[Math.floor(Math.random() * NICKNAME_SUFFIXES.length)];
+    const randomName = prefix + suffix; // 예: "NovaRider", "ShadowGhost"
+    
+    // 💡 2. 유저 점수에 따라 AI가 사용할 스킨 ID 결정
+    const userScore = entry.user.score || 0;
+    let aiSkinId = 0; // 기본 스킨
 
+    // 유저가 현재 점수로 해금 가능한 스킨 목록 필터링
+    const availableSkins = SKIN_DATA.filter(s => userScore >= s.requiredScore);
+    
+    // 유저가 200점 이상이고 해금 가능한 스킨이 2개 이상일 경우 (기본 스킨 포함)
+    if (availableSkins.length > 1 && userScore >= 200) {
+        // 유저가 해금 가능한 스킨 중 랜덤으로 선택
+        const randomIndex = Math.floor(Math.random() * availableSkins.length);
+        aiSkinId = availableSkins[randomIndex].id;
+    }
+    
     const aiUser = {
         userId: "ai_" + matchId,
-        nickname: "AI",
+        nickname: randomName, // 💡 랜덤 조합 닉네임 사용
         score: 0,
         unlockedSkins: [0],
-        preferredSkin: 0
+        preferredSkin: aiSkinId // 💡 결정된 스킨 ID 사용
     };
 
     const game = makeNewGame(
@@ -302,12 +327,11 @@ function createAIMatch(entry) {
     점수 정산/게임오버/정리 헬퍼
 -------------------------------------- */
 
-// ★ 수정: AI전과 일반전 모두 동일한 점수 적용
 function settleScores(game, winnerSocketId) {
     if (game._scoresSettled) return;
     game._scoresSettled = true;
 
-    // 💡 AI전 여부에 관계없이 동일한 점수 적용 (사용자 요청)
+    // AI전 여부에 관계없이 동일한 점수 적용
     const WIN_SCORE = 25; 
     const LOSE_SCORE = -20; 
 
@@ -367,7 +391,6 @@ function destroyGame(game) {
     게임 종료 처리 (강제 종료용)
 -------------------------------------- */
 
-// AI전 예외 조건이 원래 없었으므로 그대로 유지
 function finishGame(game, winnerSocketId) {
     settleScores(game, winnerSocketId);
     sendGameOver(game, winnerSocketId);
@@ -455,7 +478,12 @@ function updateGame(game, dt) {
         p.x = Math.max(40, Math.min(760, p.x));
         p.y = Math.max(40, Math.min(560, p.y));
 
-        p.ammo = Math.min(100, p.ammo + 22 * dt);
+        let ammoRate = 22; // 기본 충전 속도
+        if (p.skinId === 1) {
+            ammoRate = 18; // 와이드 스킨은 충전 속도가 느려짐
+        }
+        
+        p.ammo = Math.min(100, p.ammo + ammoRate * dt);
 
         if (p.shieldActive) {
             p.shieldTimer -= dt;
@@ -773,11 +801,12 @@ io.on("connection", (socket) => {
             waitingPlayer = {
                 socket,
                 user,
+                // 매칭 시간 10초 ~ 15초 사이로 변경
                 timeout: setTimeout(() => {
                     if (!waitingPlayer || waitingPlayer.socket.id !== socket.id) return;
                     createAIMatch(waitingPlayer);
                     waitingPlayer = null;
-                }, 15000)
+                }, 10000 + Math.random() * 5000) 
             };
             socket.emit("waiting");
         }
