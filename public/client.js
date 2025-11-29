@@ -107,6 +107,7 @@ class SoundManager {
 }
 
 const sound = new SoundManager();
+// 첫 사용자 입력 후 오디오 초기화
 document.addEventListener(
   "click",
   () => {
