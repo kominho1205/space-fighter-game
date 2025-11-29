@@ -170,8 +170,8 @@ document.addEventListener(
 
 const socket = io();
 
-// 프로필 수신 시 UI 갱신
-socket.on("profile", (p) => {
+// UI 갱신 함수 (프로필 수신 시 호출)
+function updateProfileUI(p) {
   latestProfile = p;
 
   const homeNicknameEl = document.getElementById("homeNickname");
@@ -185,27 +185,28 @@ socket.on("profile", (p) => {
   if (rankScoreEl) rankScoreEl.textContent = p.score;
 
   renderSkinList();
+}
+
+// 프로필 수신 시 UI 갱신 (★ 서버에서 프로필 정보가 변경될 때마다 이 이벤트로 갱신됨)
+socket.on("profile", (p) => {
+  updateProfileUI(p);
 });
 
-// 실제 로그인 처리 (서버 identify 성공 후 호출됨)
-function finalizeLogin(userProfile) {
+// 실제 로그인 완료 처리 (서버 identify 성공 후 호출됨)
+function finalizeLogin(userProfile, pw) {
   // 전역 변수 업데이트
   nickname = userProfile.nickname;
-  userId = userProfile.userId; // 서버에서 확정된 userId (makeUserIdFromLogin을 이미 통과했거나, 로드된 값)
+  userId = userProfile.userId;
   currentAccount = { nickname: userProfile.nickname };
 
-  // 자동 로그인 정보 저장 (닉네임과 비밀번호를 다시 저장)
-  const nick = document.getElementById("nicknameInput").value.trim();
-  const pw = document.getElementById("passwordInput").value.trim();
+  // 자동 로그인 정보 저장 (닉네임과 비밀번호를 저장)
   localStorage.setItem(
     ACCOUNT_KEY,
-    JSON.stringify({ nickname: nick, password: pw })
+    JSON.stringify({ nickname: userProfile.nickname, password: pw })
   );
 
-  // 프로필 업데이트 (서버에서 받은 최신 정보로)
-  latestProfile = userProfile;
-  // UI 업데이트 함수 호출 (socket.on('profile')이 이미 하긴 하지만, 확실히)
-  socket.emit("profile", userProfile); 
+  // 프로필 업데이트 및 UI 갱신
+  updateProfileUI(userProfile);
 
   showScreen("home");
 }
@@ -231,18 +232,19 @@ function tryAutoLogin() {
     return;
   }
 
-  // 자동 로그인 시도 시에도 서버의 응답을 기다립니다.
-  const autoUserId = makeUserIdFromLogin(data.nickname, data.password);
-  
-  // 비밀번호 입력 필드에 자동 채우기 (나중에 수동 로그인을 위해)
+  // 비밀번호 입력 필드에 자동 채우기 (로그인 화면에 남겨두기 위함)
   document.getElementById("nicknameInput").value = data.nickname;
   document.getElementById("passwordInput").value = data.password;
+
+  const autoUserId = makeUserIdFromLogin(data.nickname, data.password);
   
+  // 자동 로그인 시도 시에도 서버의 응답을 기다립니다.
   socket.emit("identify", { userId: autoUserId, nickname: data.nickname }, (res) => {
     if (res.success) {
-      finalizeLogin(res.user);
+      finalizeLogin(res.user, data.password);
     } else {
       console.error("Auto-login failed:", res.reason);
+      // 실패 시 저장된 정보 삭제 및 닉네임 화면 표시
       localStorage.removeItem(ACCOUNT_KEY);
       showScreen("nickname");
     }
@@ -254,15 +256,15 @@ socket.on("connect", () => {
   mySocketId = socket.id;
 
   if (userId && nickname) {
-    // 이미 로그인 정보 있으면 재식별 (connect 핸들러에서 바로 처리)
+    // 이미 로그인 정보 있으면 재식별 (재접속)
     const storedPw = JSON.parse(localStorage.getItem(ACCOUNT_KEY))?.password || "";
     const currentUserId = makeUserIdFromLogin(nickname, storedPw);
     
     // 재접속 시에도 서버의 응답을 기다려야 함
     socket.emit("identify", { userId: currentUserId, nickname: nickname }, (res) => {
         if (res.success) {
-            // 이미 로그인된 상태이므로 UI만 업데이트 (finalizeLogin은 호출 안 함)
-            latestProfile = res.user; 
+            // 재접속 성공, UI만 업데이트 (finalizeLogin은 호출 안 함)
+            updateProfileUI(res.user);
             showScreen("home");
         } else {
             console.error("Re-identification failed:", res.reason);
@@ -278,7 +280,7 @@ socket.on("connect", () => {
   }
 });
 
-// 닉네임/비밀번호 입력 버튼 (★ 수정된 부분)
+// 닉네임/비밀번호 입력 버튼 (★ 수정된 핵심 로직: 서버 응답을 기다림)
 document
   .getElementById("nicknameConfirmBtn")
   .addEventListener("click", () => {
@@ -294,24 +296,22 @@ document
       return;
     }
     
-    // 1. 유효성 검사 후 userId 생성
     const newUserId = makeUserIdFromLogin(nick, pw);
     
-    // 2. 서버에 identify 요청 및 콜백 처리 (닉네임 중복 검사 포함)
+    // 서버에 identify 요청 및 콜백 처리 (닉네임 중복 검사 및 로그인/생성 처리)
     socket.emit("identify", { userId: newUserId, nickname: nick }, (res) => {
         if (res.success) {
             // 성공: 로그인 완료 처리
-            finalizeLogin(res.user);
+            finalizeLogin(res.user, pw);
         } else {
             // 실패: 에러 메시지 표시
             if (res.reason === "NICKNAME_TAKEN") {
-                alert("이미 사용 중인 닉네임이거나, 다른 비밀번호로 사용 중인 닉네임입니다. 닉네임 또는 비밀번호를 변경해주세요.");
+                alert("이미 사용 중인 닉네임입니다. 다른 닉네임을 선택하거나, 올바른 비밀번호를 사용해주세요.");
             } else if (res.reason === "SERVER_ERROR") {
                 alert("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
             } else {
                 alert("로그인/계정 생성 중 오류가 발생했습니다.");
             }
-            // 비밀번호 입력 필드는 그대로 유지하여 재시도 가능하게 함
         }
     });
   });
@@ -393,6 +393,7 @@ const SKIN_DATA = [
 
 function renderSkinList() {
   if (!latestProfile) return;
+  // ★ 서버에서 받은 unlockedSkins를 기반으로 잠금 상태 결정
   const unlocked = new Set(latestProfile.unlockedSkins || []);
   const container = document.getElementById("skinList");
   container.innerHTML = "";
@@ -403,8 +404,9 @@ function renderSkinList() {
 
     const locked = !unlocked.has(skin.id);
 
+    // 잠금 상태에 따라 버튼 라벨 변경
     const btnLabel = locked
-      ? "잠김"
+      ? `잠김 (${skin.requiredScore}점)`
       : latestProfile.preferredSkin === skin.id
       ? "선택됨"
       : "선택";
@@ -482,9 +484,7 @@ let restartStatus = {
   other: false
 };
 
-socket.on("connect", () => {
-  mySocketId = socket.id;
-});
+// socket.on("connect")은 위에 자동 로그인 로직에 포함됨
 
 socket.on("waiting", () => {
   if (screens.game.classList.contains("hidden")) return;
