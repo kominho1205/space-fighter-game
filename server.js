@@ -2,8 +2,8 @@
 const path = require("path");
 const express = require("express");
 const http = require("http");
-const fs = require("fs");
 const { Server } = require("socket.io");
+const { Pool } = require("pg");
 
 const app = express();
 const server = http.createServer(app);
@@ -11,51 +11,63 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, "public")));
-server.listen(PORT, () => console.log("Space Z server running:", PORT));
+// ---------- PostgreSQL 연결 ----------
 
-/* --------------------------------------
-   파일 기반 유저 데이터 저장/로드
--------------------------------------- */
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.PGSSL === "disable" ? false : { rejectUnauthorized: false }
+});
 
-const DATA_FILE = "./users.json";
-
-/** users: Map<userId, profile> */
+// 메모리 캐시 (동일 구조 유지)
 let users = new Map();
 
-function loadUsersFromFile() {
-  try {
-    if (fs.existsSync(DATA_FILE)) {
-      const raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-      users = new Map(raw); // 배열 → 맵 복원
-      console.log("[LOAD] users.json 로드 완료. 유저 수:", users.size);
-    } else {
-      console.log("[LOAD] users.json 없음. 새 파일 생성 예정");
+async function loadUserFromDB(userId) {
+  const res = await pool.query(
+    "SELECT user_id, nickname, score, unlocked_skins, preferred_skin FROM users WHERE user_id = $1",
+    [userId]
+  );
+  if (res.rowCount === 0) return null;
+
+  const row = res.rows[0];
+  return {
+    userId: row.user_id,
+    nickname: row.nickname,
+    score: row.score,
+    unlockedSkins: (row.unlocked_skins || []).map((v) => Number(v)),
+    preferredSkin: row.preferred_skin
+  };
+}
+
+async function saveUserToDB(u) {
+  await pool.query(
+    `INSERT INTO users (user_id, nickname, score, unlocked_skins, preferred_skin)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (user_id)
+     DO UPDATE SET nickname = EXCLUDED.nickname,
+                   score = EXCLUDED.score,
+                   unlocked_skins = EXCLUDED.unlocked_skins,
+                   preferred_skin = EXCLUDED.preferred_skin`,
+    [u.userId, u.nickname, u.score, u.unlockedSkins, u.preferredSkin]
+  );
+}
+
+async function getOrCreateUser(userId, nickname) {
+  // 캐시에 있으면 바로 반환
+  if (users.has(userId)) {
+    const u = users.get(userId);
+    if (nickname && u.nickname !== nickname) {
+      u.nickname = nickname;
+      await saveUserToDB(u);
     }
-  } catch (err) {
-    console.error("[ERROR] users.json 로드 실패:", err);
+    if (!u.unlockedSkins.includes(0)) {
+      u.unlockedSkins.push(0);
+      await saveUserToDB(u);
+    }
+    return u;
   }
-}
 
-function saveUsersToFile() {
-  try {
-    const arr = [...users.entries()];
-    fs.writeFileSync(DATA_FILE, JSON.stringify(arr));
-    //console.log("[SAVE] users.json 저장됨");
-  } catch (err) {
-    console.error("[ERROR] users.json 저장 실패:", err);
-  }
-}
-
-// 서버 시작 시 로드
-loadUsersFromFile();
-
-/* --------------------------------------
-   유저 관리
--------------------------------------- */
-
-function getOrCreateUser(userId, nickname) {
-  let u = users.get(userId);
+  // DB에서 찾기
+  let u = await loadUserFromDB(userId);
   if (!u) {
     u = {
       userId,
@@ -64,12 +76,18 @@ function getOrCreateUser(userId, nickname) {
       unlockedSkins: [0],
       preferredSkin: 0
     };
-    users.set(userId, u);
-    saveUsersToFile(); // 신규 생성 시 저장
+    await saveUserToDB(u);
   } else {
-    if (nickname) u.nickname = nickname;
-    if (!u.unlockedSkins.includes(0)) u.unlockedSkins.push(0);
+    if (nickname && u.nickname !== nickname) {
+      u.nickname = nickname;
+      await saveUserToDB(u);
+    }
+    if (!u.unlockedSkins.includes(0)) {
+      u.unlockedSkins.push(0);
+      await saveUserToDB(u);
+    }
   }
+  users.set(userId, u);
   return u;
 }
 
@@ -83,6 +101,16 @@ function serializeProfile(u) {
   };
 }
 
+function getUserBySocket(socket) {
+  if (!socket._userId) return null;
+  return users.get(socket._userId) || null;
+}
+
+// ---------- 서버/정적 파일 ----------
+
+app.use(express.static(path.join(__dirname, "public")));
+server.listen(PORT, () => console.log("Space Z server running:", PORT));
+
 /* --------------------------------------
    매칭/게임 상태
 -------------------------------------- */
@@ -93,10 +121,6 @@ const socketMatch = new Map();
 
 function generateMatchId() {
   return "m_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-function getUserBySocket(socket) {
-  return users.get(socket._userId);
 }
 
 function findGameBySocketId(socketId) {
@@ -116,7 +140,6 @@ function makeNewGame(matchId, players, options) {
     id: matchId,
     ai: !!options.ai,
 
-    // 3초 카운트다운
     countdown: 3,
 
     players: [],
@@ -128,12 +151,10 @@ function makeNewGame(matchId, players, options) {
     itemSpawnTimer: 0,
     restartStatus: {},
 
-    // 파괴 연출 후 딜레이 종료
     ended: false,
     winnerSocketId: null,
     endTimer: 0,
 
-    // 점수/게임오버 중복 방지 플래그
     _scoresSettled: false,
     _gameOverSent: false
   };
@@ -242,9 +263,12 @@ function settleScores(game, winnerSocketId) {
     } else {
       u.score = Math.max(0, u.score - 20);
     }
-  });
 
-  saveUsersToFile();
+    // DB에 비동기 업데이트 (기다리지 않고 fire-and-forget)
+    saveUserToDB(u).catch((err) =>
+      console.error("[ERROR] saveUserToDB in settleScores:", err)
+    );
+  });
 }
 
 function sendGameOver(game, winnerSocketId) {
@@ -320,7 +344,6 @@ setInterval(() => {
 -------------------------------------- */
 
 function updateGame(game, dt) {
-  // 파괴 후 연출 단계
   if (game.ended) {
     const ex2 = [];
     game.explosions.forEach((e) => {
@@ -330,7 +353,6 @@ function updateGame(game, dt) {
     game.explosions = ex2;
 
     game.endTimer -= dt;
-    // 폭발 끝날 때 점수/게임오버만 보내고, 게임은 유지 (재대전용)
     if (game.endTimer <= 0 && game.winnerSocketId && !game._gameOverSent) {
       settleScores(game, game.winnerSocketId);
       sendGameOver(game, game.winnerSocketId);
@@ -338,21 +360,17 @@ function updateGame(game, dt) {
     return;
   }
 
-  // 카운트다운 중이면 이동/공격 금지
   if (game.countdown > 0) {
     game.countdown -= dt;
     if (game.countdown < 0) game.countdown = 0;
     return;
   }
 
-  /* --- 플레이어 이동/상태 업데이트 --- */
-
   game.players.forEach((p) => {
     let speed = 220;
     if (p.skinId === 1) speed = 180;
     if (p.skinId === 2) speed = 260;
 
-    // AI 약화
     if (!p.socket) speed = 160;
 
     const m = p.moveInput;
@@ -382,8 +400,6 @@ function updateGame(game, dt) {
     if (p._shootCooldown > 0) p._shootCooldown -= dt;
   });
 
-  /* --- AI 동작 --- */
-
   if (game.ai) {
     const ai = game.players.find((p) => !p.socket);
     const human = game.players.find((p) => p.socket);
@@ -392,7 +408,6 @@ function updateGame(game, dt) {
       let targetX = human.x;
       let targetY = human.y;
 
-      // 아이템 먹기 우선
       if (game.items.length > 0) {
         let nearest = null;
         let best = 99999;
@@ -430,15 +445,11 @@ function updateGame(game, dt) {
     }
   }
 
-  /* --- 아이템 스폰 --- */
-
   game.itemSpawnTimer -= dt;
   if (game.itemSpawnTimer <= 0) {
     game.itemSpawnTimer = 4 + Math.random() * 3;
     spawnRandomItem(game);
   }
-
-  /* --- 총알 이동/충돌 --- */
 
   const newBullets = [];
   game.bullets.forEach((b) => {
@@ -460,14 +471,11 @@ function updateGame(game, dt) {
           p.hitInvActive = true;
           p.hitInvTimer = 1.0;
 
-          // 피격 폭발
           game.explosions.push({ x: b.x, y: b.y, age: 0 });
 
           if (p.hp <= 0 && !game.ended) {
-            // 전투기 파괴 위치 폭발
             game.explosions.push({ x: p.x, y: p.y, age: 0 });
 
-            // 파괴 후 딜레이
             game.ended = true;
             game.winnerSocketId = b.ownerId;
             game.endTimer = 0.7;
@@ -480,15 +488,12 @@ function updateGame(game, dt) {
   });
   game.bullets = newBullets;
 
-  /* --- 폭발 업데이트(일반 폭발) --- */
   const ex2 = [];
   game.explosions.forEach((e) => {
     e.age += dt;
     if (e.age < 0.5) ex2.push(e);
   });
   game.explosions = ex2;
-
-  /* --- 아이템 획득 --- */
 
   const items2 = [];
   game.items.forEach((it) => {
@@ -565,7 +570,7 @@ function broadcastState(game) {
     countdown: game.countdown,
     players: game.players.map((p) => ({
       socketId: p.socketId,
-      nickname: p.nickname,        // ★ 닉네임 추가
+      nickname: p.nickname,
       role: p.role,
       x: p.x,
       y: p.y,
@@ -603,41 +608,51 @@ function broadcastState(game) {
 io.on("connection", (socket) => {
   socket._userId = null;
 
-  // 클라이언트 identify (userId + nickname)
-  socket.on("identify", ({ userId, nickname }) => {
-    const u = getOrCreateUser(userId, nickname);
-    socket._userId = userId;
-    socket.emit("profile", serializeProfile(u));
+  socket.on("identify", async ({ userId, nickname }) => {
+    try {
+      const u = await getOrCreateUser(userId, nickname);
+      socket._userId = userId;
+      socket.emit("profile", serializeProfile(u));
+    } catch (err) {
+      console.error("[ERROR] identify:", err);
+    }
   });
 
-  // 랭킹
-  socket.on("get_leaderboard", (cb) => {
-    const list = [...users.values()]
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 50)
-      .map((u) => ({ nickname: u.nickname, score: u.score }));
-    cb(list);
+  socket.on("get_leaderboard", async (cb) => {
+    try {
+      const res = await pool.query(
+        "SELECT nickname, score FROM users ORDER BY score DESC LIMIT 50"
+      );
+      const list = res.rows.map((r) => ({
+        nickname: r.nickname,
+        score: r.score
+      }));
+      cb(list);
+    } catch (err) {
+      console.error("[ERROR] get_leaderboard:", err);
+      cb([]);
+    }
   });
 
-  // 스킨 선택
-  socket.on("set_skin", ({ skinId }) => {
+  socket.on("set_skin", async ({ skinId }) => {
     const u = getUserBySocket(socket);
     if (!u) return;
     if (!u.unlockedSkins.includes(skinId)) return;
     u.preferredSkin = skinId;
-    saveUsersToFile();
-    socket.emit("profile", serializeProfile(u));
+    try {
+      await saveUserToDB(u);
+      socket.emit("profile", serializeProfile(u));
+    } catch (err) {
+      console.error("[ERROR] set_skin:", err);
+    }
   });
 
-  // 매칭 찾기
-  socket.on("find_match", () => {
-    // 기존 게임 있으면 정리
+  socket.on("find_match", async () => {
     leaveCurrentGame(socket);
 
     const user = getUserBySocket(socket);
     if (!user) return;
 
-    // 이미 누가 대기 중이면 붙여서 매칭
     if (waitingPlayer && waitingPlayer.socket.id !== socket.id) {
       clearTimeout(waitingPlayer.timeout);
       const p1 = waitingPlayer;
@@ -645,10 +660,8 @@ io.on("connection", (socket) => {
       createHumanMatch(p1, p2);
       waitingPlayer = null;
     } else {
-      // 본인이 이미 대기 중이면 무시
       if (waitingPlayer && waitingPlayer.socket.id === socket.id) return;
 
-      // 새 대기자 등록 + 15초 후 AI 매칭
       waitingPlayer = {
         socket,
         user,
@@ -662,18 +675,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 홈으로/포기 등으로 매치 떠날 때
   socket.on("leave_match", () => {
-    // 매칭 대기열에 있던 상태면 AI 15초 타이머 제거
     if (waitingPlayer && waitingPlayer.socket.id === socket.id) {
       clearTimeout(waitingPlayer.timeout);
       waitingPlayer = null;
     }
-    // 이미 게임 중이었다면 패배 처리
     leaveCurrentGame(socket, { countAsLose: true });
   });
 
-  // 이동 입력
   socket.on("move", (m) => {
     const game = findGameBySocketId(socket.id);
     if (!game) return;
@@ -688,12 +697,10 @@ io.on("connection", (socket) => {
     };
   });
 
-  // 발사 입력
   socket.on("shoot", () => {
     const game = findGameBySocketId(socket.id);
     if (!game) return;
 
-    // 카운트다운 동안은 공격 불가
     if (game.countdown > 0) return;
 
     const p = game.players.find((p) => p.socketId === socket.id);
@@ -705,7 +712,6 @@ io.on("connection", (socket) => {
     spawnBullet(game, p);
   });
 
-  // 다시 시작 요청
   socket.on("restart_request", () => {
     const game = findGameBySocketId(socket.id);
     if (!game) return;
@@ -721,13 +727,14 @@ io.on("connection", (socket) => {
 
       const playersInfo = game.players.map((p) => ({
         socket: p.socket,
-        user: users.get(p.userId) || {
-          userId: p.userId,
-          nickname: p.nickname,
-          score: p.scoreSnapshot,
-          unlockedSkins: [p.skinId],
-          preferredSkin: p.skinId
-        },
+        user:
+          users.get(p.userId) || {
+            userId: p.userId,
+            nickname: p.nickname,
+            score: p.scoreSnapshot,
+            unlockedSkins: [p.skinId],
+            preferredSkin: p.skinId
+          },
         role: p.role
       }));
 
@@ -739,7 +746,6 @@ io.on("connection", (socket) => {
         if (p.socket) p.socket.emit("restart");
       });
     } else {
-      // 각 소켓별 준비 상태 전송
       const status = {};
       game.players.forEach((p) => {
         if (p.socket) status[p.socket.id] = !!game.restartStatus[p.socket.id];
@@ -750,14 +756,11 @@ io.on("connection", (socket) => {
     }
   });
 
-  // 연결 종료
   socket.on("disconnect", () => {
-    // 대기 중이던 사람이면 AI 타이머 제거
     if (waitingPlayer && waitingPlayer.socket.id === socket.id) {
       clearTimeout(waitingPlayer.timeout);
       waitingPlayer = null;
     }
-    // 게임 중이면 패배 처리
     leaveCurrentGame(socket, { countAsLose: true });
   });
 });
