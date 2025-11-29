@@ -794,7 +794,7 @@ function draw() {
     drawFighter(p);
   });
 
-  // 중앙 카운트다운 텍스트
+  // 중앙 카운트다운 텍스트 (★ 이 블록만 남기기)
   if (gameCountdown > 0) {
     const cInt = Math.ceil(gameCountdown);
     const text = cInt.toString();
@@ -807,18 +807,6 @@ function draw() {
   }
 }
 
-  // 중앙 카운트다운 텍스트
-  if (gameCountdown > 0) {
-    const cInt = Math.ceil(gameCountdown);
-    const text = cInt.toString();
-    ctx.fillStyle = "#ffe66d";
-    ctx.font =
-      "bold 40px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
-  }
-}
 
 function drawBullet(b) {
   ctx.save();
