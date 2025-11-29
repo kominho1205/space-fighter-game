@@ -746,6 +746,16 @@ function isOverlayVisible() {
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // ★ 게임 맵용 조금 더 밝은 배경 패널
+  const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  g.addColorStop(0, "#1b2b5d");   // 위쪽 밝은 남색
+  g.addColorStop(1, "#070e26");   // 아래쪽 짙은 남색
+  ctx.save();
+  ctx.globalAlpha = 0.92;         // 뒤의 우주 배경이 살짝 비치게
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
   if (!currentState) {
     if (!isOverlayVisible()) {
       drawCenteredText(
@@ -778,6 +788,19 @@ function draw() {
   currentState.players.forEach((p) => {
     drawFighter(p);
   });
+
+  // 중앙 카운트다운 텍스트
+  if (gameCountdown > 0) {
+    const cInt = Math.ceil(gameCountdown);
+    const text = cInt.toString();
+    ctx.fillStyle = "#ffe66d";
+    ctx.font =
+      "bold 40px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI'";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+  }
+}
 
   // 중앙 카운트다운 텍스트
   if (gameCountdown > 0) {
